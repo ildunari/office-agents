@@ -1,190 +1,101 @@
-# AGENTS.md
+# Project: Office Agents
 
-## Project Overview
+<!-- Generated: 2026-03-19 by init-advanced -->
 
-**Office Agents** is a pnpm monorepo containing Microsoft Office Add-ins with integrated AI chat interfaces. Users can chat with LLM providers (OpenAI, Anthropic, Google, etc.) directly within Office apps using their own API keys (BYOK). The agent has Office read/write tools, a sandboxed bash shell, and a virtual filesystem for file uploads.
+## Context
 
-- **@office-agents/sdk** (`packages/sdk/`) — Headless SDK: agent runtime, tools (bash, read), storage, VFS, skills, OAuth, web search/fetch, provider config
-- **@office-agents/core** (`packages/core/`) — Svelte chat UI layer: re-exports SDK + ChatInterface, settings panel, sessions, message rendering
-- **@office-agents/bridge** (`packages/bridge/`) — Local HTTPS/WebSocket RPC bridge + CLI for talking to a live Office add-in runtime during development
-- **@office-agents/excel** (`packages/excel/`) — Excel Add-in: spreadsheet tools, Office.js wrappers, system prompt, cell-range follow mode
-- **@office-agents/powerpoint** (`packages/powerpoint/`) — PowerPoint Add-in: slide/OOXML tools, JSZip-based PPTX editing, system prompt
-- **@office-agents/word** (`packages/word/`) — Word Add-in: document text/structure/OOXML tools, screenshots, Office.js escape hatch
+Office Agents is a `pnpm` monorepo for Microsoft Office add-ins with built-in AI chat. The shared runtime lives in `packages/sdk`, the shared Svelte UI layer lives in `packages/core`, the local Office debug bridge lives in `packages/bridge`, and the Office app packages live in `packages/excel`, `packages/powerpoint`, and `packages/word`.
 
-### Key Paths
+Treat this as a browser-first TypeScript codebase with Office.js integration. Most risky changes touch one of these areas:
+- provider/model resolution, sessions, VFS, skills, or storage in `packages/sdk/src`
+- shared chat behavior in `packages/core/src/chat`
+- live Office runtime inspection or raw execution in `packages/bridge/src`
+- Office host tools, prompts, and metadata adapters in `packages/excel/src/lib`, `packages/powerpoint/src/lib`, or `packages/word/src/lib`
 
-- `packages/sdk/src/runtime.ts` — `AgentRuntime` class (agent lifecycle, streaming, model resolution)
-- `packages/sdk/src/tools/` — Shared tools (`bash.ts`, `read-file.ts`, `types.ts` with `defineTool`)
-- `packages/sdk/src/vfs/` — Virtual filesystem + custom commands (`setCustomCommands`)
-- `packages/sdk/src/storage/` — IndexedDB sessions, VFS file persistence, skills
-- `packages/core/src/chat/` — Svelte chat components and controller (`chat-interface.svelte`, `chat-controller.ts`, `app-adapter.ts`, `settings-panel.svelte`)
-- `packages/bridge/src/server.ts` — Local HTTPS/WebSocket bridge server and session registry
-- `packages/bridge/src/client.ts` — Add-in bridge client that connects from the Office taskpane to the local bridge
-- `packages/bridge/src/cli.ts` — `office-bridge` CLI (`list`, `inspect`, `metadata`, `tool`, `exec`, `events`)
-- `packages/excel/src/lib/adapter.ts` — Excel `AppAdapter` (tools, prompt, metadata, follow mode)
-- `packages/excel/src/lib/tools/` — Excel-specific tools (`set-cell-range`, `get-cell-ranges`, `eval-officejs`, etc.)
-- `packages/powerpoint/src/lib/adapter.ts` — PowerPoint `AppAdapter` (tools, prompt, metadata)
-- `packages/powerpoint/src/lib/tools/` — PPT tools (`edit-slide-xml`, `screenshot-slide`, `edit-slide-chart`, etc.)
-- `packages/powerpoint/src/lib/pptx/` — OOXML/PPTX helpers (`slide-zip.ts`, `xml-utils.ts`)
-- `packages/word/src/lib/adapter.ts` — Word `AppAdapter` (tools, prompt, metadata)
-- `packages/word/src/lib/tools/` — Word tools (`get-document-text`, `get-document-structure`, `get-paragraph-ooxml`, `screenshot-document`, `execute-office-js`)
+## Commands
 
-## Tech Stack
-
-- **Framework**: Svelte 5
-- **Language**: TypeScript
-- **Styling**: Tailwind CSS v4 + CSS variables for theming
-- **Icons**: Lucide icons (`lucide-svelte`)
-- **Build Tool**: Vite 6
-- **Office Integration**: Office.js API (`@types/office-js`)
-- **LLM Integration**: `@mariozechner/pi-ai` + `@mariozechner/pi-agent-core` (unified LLM & agent API)
-- **Virtual Filesystem / Bash**: `just-bash` (in-memory VFS + shell)
-- **Dev Server**: Vite dev server with HTTPS
-- **Monorepo**: pnpm workspaces
-
-## Key Architecture
-
-### AppAdapter Pattern
-
-Each Office app implements the `AppAdapter` interface from `@office-agents/core`:
-
-```typescript
-interface AppAdapter {
-  tools: AgentTool[];                               // App-specific tools
-  buildSystemPrompt: (skills) => string;            // System prompt
-  getDocumentId: () => Promise<string>;             // Unique doc ID for sessions
-  getDocumentMetadata?: () => Promise<...>;         // Injected into each prompt
-  onToolResult?: (id, result, isError) => void;     // Follow-mode, navigation
-  metadataTag?: string;                             // XML tag for metadata (default: "doc_context")
-  handleLinkClick?: (context) => "handled" | "default" | Promise<...>;
-  ToolExtras?: Component<ToolExtrasProps>;          // Extra UI in tool call blocks
-  HeaderExtras?: Component;                         // Extra header controls
-  SelectionIndicator?: Component;                   // App-specific selection status UI
-  appName?: string;
-  appVersion?: string;
-  emptyStateMessage?: string;
-}
-```
-
-The core `ChatInterface` component accepts an adapter and handles all generic chat UI, agent lifecycle, sessions, settings, file uploads, and skills.
-
-### VFS Custom Commands
-
-App-specific VFS commands are registered via `setCustomCommands()` from SDK. Excel registers: `csv-to-sheet`, `sheet-to-csv`, `pdf-to-text`, `docx-to-text`, `xlsx-to-csv`, `image-to-sheet`, `web-search`, `web-fetch`. PowerPoint registers: `pdf-to-text`, `pdf-to-images`, `docx-to-text`, `xlsx-to-csv`, `web-search`, `web-fetch`.
-
-## Development Commands
+Use the root scripts unless you have a package-specific reason not to.
 
 ```bash
-pnpm install             # Install all dependencies
-pnpm bridge:serve        # Start the local Office RPC bridge server (https://localhost:4017)
-pnpm bridge:stop         # Stop the local Office RPC bridge server
-pnpm exec office-bridge list  # List live Office bridge sessions
-pnpm dev-server:excel    # Start Excel dev server (https://localhost:3000)
-pnpm dev-server:ppt      # Start PowerPoint dev server (https://localhost:3001)
-pnpm dev-server:word     # Start Word dev server (https://localhost:3002)
-pnpm start:excel         # Launch Excel with add-in sideloaded
-pnpm start:ppt           # Launch PowerPoint with add-in sideloaded
-pnpm start:word          # Launch Word with add-in sideloaded
-pnpm build               # Build all packages
-pnpm lint                # Run Biome linter
-pnpm format              # Format code with Biome
-pnpm typecheck           # TypeScript type checking (all packages)
-pnpm check               # Typecheck + lint
-pnpm validate            # Validate Office manifests
-```
-
-### Office Bridge
-
-During development, the Office taskpane auto-connects to the local bridge client on localhost. Use the bridge to inspect the real Office runtime and run tools against the live add-in:
-
-```bash
+pnpm install
+pnpm build
+pnpm test
+pnpm lint
+pnpm format
+pnpm typecheck
+pnpm check
+pnpm validate
 pnpm bridge:serve
 pnpm bridge:stop
-pnpm exec office-bridge list
-pnpm exec office-bridge inspect word
-pnpm exec office-bridge metadata word
-pnpm exec office-bridge tool word get_document_text
-pnpm exec office-bridge exec word --code "return { href: window.location.href, title: document.title }"  # unsafe direct eval by default
-pnpm exec office-bridge exec word --sandbox --code "const body = context.document.body; body.load('text'); await context.sync(); return body.text;"
-pnpm exec office-bridge screenshot word --pages 1 --out page1.png
-pnpm exec office-bridge vfs ls word /home/user
-pnpm exec office-bridge vfs pull word /home/user/uploads/report.docx ./report.docx
-pnpm exec office-bridge vfs push word ./local.txt /home/user/uploads/local.txt
+pnpm dev-server:excel
+pnpm dev-server:ppt
+pnpm dev-server:word
+pnpm start:excel
+pnpm start:ppt
+pnpm start:word
 ```
 
-`office-bridge exec` runs code with full taskpane/runtime access by default during development. Use `--sandbox` to route through the existing app escape-hatch tool instead.
+Package-level validation is available through filters, for example:
 
-Use `office-bridge screenshot ... --out file.png` for a simple screenshot-to-local-file workflow, or `office-bridge tool ... --out file.png` for image-returning tool calls. The CLI strips image base64 from printed JSON output to avoid blowing up model context windows.
-
-`pnpm bridge:serve` reuses an already-running healthy bridge server on port `4017` instead of failing with `EADDRINUSE`.
-
-Bridge defaults:
-
-- HTTPS API: `https://localhost:4017`
-- WebSocket: `wss://localhost:4017/ws`
-- Package docs: `packages/bridge/README.md`
-
-## Code Style
-
-- Formatter/linter: Biome
-- No JSDoc comments on functions
-- Run `pnpm format` before committing
-
-## Release Workflow
-
-Each app is released independently with its own version tag, changelog, and Cloudflare Pages project.
-
-| Package    | Tag prefix    | Changelog                          | Deploy target    |
-| ---------- | ------------- | ---------------------------------- | ---------------- |
-| Excel      | `excel-v*`    | `packages/excel/CHANGELOG.md`      | CF Pages `openexcel` |
-| PowerPoint | `ppt-v*`      | `packages/powerpoint/CHANGELOG.md` | CF Pages `openppt`   |
-| Word       | `word-v*`     | `packages/word/CHANGELOG.md`       | CF Pages `openword`  |
-| SDK        | `sdk-v*`      | `packages/sdk/CHANGELOG.md`        | npm `@office-agents/sdk` |
-| Bridge     | `bridge-v*`   | `packages/bridge/CHANGELOG.md`     | npm `@office-agents/bridge` |
-
-### Steps (per app)
-
-1. Add changes under `## [Unreleased]` in the app's `CHANGELOG.md`
-2. Run the release script:
-   ```bash
-   pnpm release:excel patch    # or minor/major
-   pnpm release:ppt patch      # or minor/major
-   pnpm release:word patch     # or minor/major
-   pnpm release:sdk patch      # or minor/major
-   pnpm release:bridge patch   # or minor/major
-   ```
-3. The script bumps the version, stamps the changelog, commits, tags (`excel-v*` / `ppt-v*` / `word-v*` / `sdk-v*` / `bridge-v*`), and pushes
-4. CI builds, deploys to Cloudflare Pages, and creates a GitHub release
-
-## Configuration Storage
-
-User settings stored in browser localStorage (legacy `openexcel-` prefix):
-
-| Key                            | Contents                                                                                           |
-| ------------------------------ | -------------------------------------------------------------------------------------------------- |
-| `openexcel-provider-config`    | `{ provider, apiKey, model, useProxy, proxyUrl, thinking, followMode, apiType, customBaseUrl, authMethod }` |
-| `openexcel-oauth-credentials`  | `{ [provider]: { refresh, access, expires } }`                                                   |
-| `openexcel-web-config`         | `{ searchProvider, fetchProvider, apiKeys }` |
-| `office-agents-theme`          | `"light"` or `"dark"` |
-
-Session data (messages, VFS files, skills) stored in IndexedDB via `idb` (`OpenExcelDB_v3`).
-
-## Excel API Usage
-
-```typescript
-await Excel.run(async (context) => {
-  const sheet = context.workbook.worksheets.getActiveWorksheet();
-  const range = sheet.getRange("A1");
-  range.values = [["value"]];
-  await context.sync();
-});
+```bash
+pnpm --filter @office-agents/sdk test
+pnpm --filter @office-agents/bridge build
+pnpm --filter @office-agents/excel dev-server
 ```
 
-## References
+## Architecture
 
-- `packages/bridge/README.md` — bridge usage and CLI docs
+- `packages/sdk/src/runtime.ts` is the main agent lifecycle entry point. Changes there can affect every Office app.
+- `packages/core/src/chat` contains the reusable Svelte chat controller and UI shell used by all add-ins.
+- Each Office package exposes an adapter that plugs app-specific tools and metadata into the shared runtime.
+- `packages/bridge/src/server.ts`, `client.ts`, and `cli.ts` power the local HTTPS and WebSocket bridge used to inspect or drive a live Office add-in during development.
+- Tests exist across the shared packages and some app packages. Prefer targeted tests when changing a single package, then widen scope if the change crosses package boundaries.
 
-- [Office Add-ins Documentation](https://learn.microsoft.com/en-us/office/dev/add-ins/)
-- [Excel JavaScript API](https://learn.microsoft.com/en-us/javascript/api/excel)
-- [pi-ai / pi-agent-core](https://github.com/badlogic/pi-mono)
-- [just-bash](https://github.com/nickvdyck/just-bash)
+## Working Agreements
+
+- Keep changes patch-sized and scoped to the request. Do not refactor adjacent packages unless the task requires it.
+- Fix shared behavior in `sdk` or `core` once when possible. Do not patch the same behavior separately in Excel, PowerPoint, and Word unless the hosts truly differ.
+- Prefer editing source files under `packages/*/src`. Do not hand-edit generated build output such as `dist/`.
+- Preserve package boundaries. If a change belongs in `sdk` or `core`, avoid copying the same logic into the Excel, PowerPoint, or Word packages.
+- Use real repo commands only. If a command has not been verified from `package.json`, README, or CI, label it as an assumption instead of presenting it as a rule.
+- Run the smallest relevant verification before finishing:
+  - package test for a package-local change
+  - `pnpm typecheck` for TypeScript or Svelte changes
+  - `pnpm validate` when manifests or add-in packaging behavior changed
+  - `pnpm check` when the change crosses packages or affects release-critical behavior
+- Run `pnpm format` before finishing if you changed files covered by Biome formatting.
+- Keep unsafe bridge behavior explicit. `office-bridge exec` defaults to direct taskpane evaluation, so use it only when the task actually needs full runtime access. Prefer `--sandbox` when validating behavior through the app's existing escape-hatch tool.
+
+## Constraints
+
+Normal autonomous actions:
+- edit tracked source, config, docs, and tests inside this repo
+- run repo-local build, test, lint, manifest validation, and package-filtered commands
+- inspect package READMEs, CI workflows, and release scripts to ground decisions
+
+Ask before:
+- adding or removing dependencies
+- changing release scripts or GitHub workflows
+- deleting files or moving files across package boundaries
+- changing storage keys, IndexedDB namespaces, manifest IDs, or other compatibility-sensitive identifiers
+- changing bridge security posture, certificate handling, or unsafe execution defaults
+
+Never:
+- commit secrets, API keys, tokens, or local cert material
+- edit `dist/` output as the source of truth
+- invent Office.js capabilities or bridge commands that are not present in the code or docs
+
+## What To Read Before Complex Work
+
+- Read the root [README.md](/Users/kosta/LocalDev/office-agents-codex/README.md) first for repo-wide workflow and package map.
+- Read [packages/bridge/README.md](/Users/kosta/LocalDev/office-agents-codex/packages/bridge/README.md) before changing bridge transport, CLI behavior, screenshots, or VFS transfer flows.
+- Read [packages/sdk/README.md](/Users/kosta/LocalDev/office-agents-codex/packages/sdk/README.md) before changing runtime, storage, VFS, skills, OAuth, or provider config behavior.
+- Read the relevant package README before changing an app-specific adapter, Office tool, or dev-server workflow.
+
+## Done Condition
+
+Stop after implementing the requested change, running the relevant verification, and reporting:
+- files changed
+- commands run
+- whether the result is fully verified or what still blocks it
+- any follow-up risk that was noticed but intentionally left out of scope
