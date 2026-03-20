@@ -57,6 +57,8 @@ pnpm --filter @office-agents/excel dev-server
 - Fix shared behavior in `sdk` or `core` once when possible. Do not patch the same behavior separately in Excel, PowerPoint, and Word unless the hosts truly differ.
 - Prefer editing source files under `packages/*/src`. Do not hand-edit generated build output such as `dist/`.
 - Preserve package boundaries. If a change belongs in `sdk` or `core`, avoid copying the same logic into the Excel, PowerPoint, or Word packages.
+- Use git as the source of truth for work in this repo. Check status before and after changes, stage only the files relevant to the task, and leave unrelated edits untouched.
+- When a task is complete and the user has not asked you to avoid commits, create a focused commit so the result is recoverable and easy to review.
 - Use real repo commands only. If a command has not been verified from `package.json`, README, or CI, label it as an assumption instead of presenting it as a rule.
 - Run the smallest relevant verification before finishing:
   - package test for a package-local change
@@ -64,6 +66,7 @@ pnpm --filter @office-agents/excel dev-server
   - `pnpm validate` when manifests or add-in packaging behavior changed
   - `pnpm check` when the change crosses packages or affects release-critical behavior
 - Run `pnpm format` before finishing if you changed files covered by Biome formatting.
+- If you change behavior, code paths, or developer workflow, update the nearest instruction or README file when the repo already relies on that file as the source of truth.
 - Keep unsafe bridge behavior explicit. `office-bridge exec` defaults to direct taskpane evaluation, so use it only when the task actually needs full runtime access. Prefer `--sandbox` when validating behavior through the app's existing escape-hatch tool.
 
 ## Constraints
@@ -77,6 +80,7 @@ Ask before:
 - adding or removing dependencies
 - changing release scripts or GitHub workflows
 - deleting files or moving files across package boundaries
+- pushing to a remote or rewriting git history
 - changing storage keys, IndexedDB namespaces, manifest IDs, or other compatibility-sensitive identifiers
 - changing bridge security posture, certificate handling, or unsafe execution defaults
 
