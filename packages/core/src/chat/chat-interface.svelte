@@ -21,8 +21,11 @@
   import ChatInput from "./chat-input.svelte";
   import FilesPanel from "./files-panel.svelte";
   import MessageList from "./message-list.svelte";
+  import ApprovalDrawer from "./approval-drawer.svelte";
   import PlanPanel from "./plan-panel.svelte";
+  import ResumeTaskBanner from "./resume-task-banner.svelte";
   import SettingsPanel from "./settings-panel.svelte";
+  import StatusStrip from "./status-strip.svelte";
   import type { ChatTab } from "./types";
 
   type Theme = "light" | "dark";
@@ -161,6 +164,7 @@
   const followMode = $derived($runtimeState.providerConfig?.followMode ?? true);
   const HeaderExtras = $derived(adapter.HeaderExtras);
   const SelectionIndicator = $derived(adapter.SelectionIndicator);
+  const activeTaskTitle = $derived($runtimeState.activeTask?.prompt ?? null);
 </script>
 
 <div
@@ -336,6 +340,18 @@
       </div>
     </div>
   </div>
+
+  <StatusStrip
+    phase={$runtimeState.taskPhase}
+    permissionMode={$runtimeState.permissionMode}
+    pressure={$runtimeState.contextBudget?.pressure ?? null}
+    taskTitle={activeTaskTitle}
+    waiting={Boolean($runtimeState.waitingState)}
+  />
+
+  <ResumeTaskBanner message={$runtimeState.handoff?.resumeMessage ?? null} />
+
+  <ApprovalDrawer approval={$runtimeState.approvalRequest} />
 
   <PlanPanel
     plan={$runtimeState.planState}

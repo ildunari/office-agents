@@ -5,7 +5,7 @@ import { wordHostAdapter } from "./word";
 
 const genericHostAdapter: HostRuntimeAdapter = {
   hostApp: "generic",
-  classifyTool(toolName) {
+  classifyAction(toolName) {
     if (toolName === "update_plan") return "plan";
     return "neutral";
   },
@@ -14,6 +14,9 @@ const genericHostAdapter: HostRuntimeAdapter = {
   },
   canWriteWithReadSet(_toolName, _writeScopes, readScopes) {
     return readScopes.length > 0;
+  },
+  isDeniedScope(scope) {
+    return scope.kind.includes("hidden") || scope.ref.includes("protected");
   },
 };
 

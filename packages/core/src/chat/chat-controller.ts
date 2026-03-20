@@ -92,6 +92,16 @@ export class ChatController {
     this.#runtime.toggleExpandToolCalls();
   }
 
+  setPermissionMode(
+    mode: "read_only" | "confirm_writes" | "confirm_risky" | "full_auto",
+  ) {
+    this.#runtime.setPermissionMode(mode);
+  }
+
+  approvePending() {
+    this.#runtime.approvePending();
+  }
+
   async processFiles(files: File[]) {
     if (files.length === 0) return;
 

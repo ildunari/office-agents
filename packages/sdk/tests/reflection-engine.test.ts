@@ -23,4 +23,16 @@ describe("ReflectionEngine", () => {
 
     expect(decision.status).toBe("suggest");
   });
+
+  it("escalates a failed step after retries are exhausted", () => {
+    const engine = new ReflectionEngine();
+    const decision = engine.stepReflect({
+      stepId: "step-1",
+      isError: true,
+      warnings: [],
+      retryDecision: "escalate",
+    });
+
+    expect(decision.status).toBe("escalate");
+  });
 });

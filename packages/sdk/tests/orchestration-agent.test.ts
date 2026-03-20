@@ -5,6 +5,20 @@ import { AgentOrchestrator } from "../src/orchestration/AgentOrchestrator";
 import { defineTool, toolSuccess } from "../src/tools/types";
 
 describe("AgentOrchestrator", () => {
+  it("starts broad mutating requests in discuss phase before execution", () => {
+    const orchestrator = new AgentOrchestrator({
+      hostApp: "word",
+      sessionId: "session-discuss",
+      documentKey: "doc-discuss",
+    });
+
+    orchestrator.beginPrompt(
+      "Rewrite the entire contract, reorganize it, and clean up formatting throughout the document.",
+    );
+
+    expect(orchestrator.getState().phase).toBe("discuss");
+  });
+
   it("adds a stable update_plan tool alongside wrapped host tools", () => {
     const orchestrator = new AgentOrchestrator({
       hostApp: "word",
@@ -35,6 +49,7 @@ describe("AgentOrchestrator", () => {
       hostApp: "word",
       sessionId: "session-2",
       documentKey: "doc-2",
+      permissionMode: "full_auto",
     });
 
     const [writeTool] = orchestrator.wrapTools([
@@ -68,6 +83,7 @@ describe("AgentOrchestrator", () => {
       hostApp: "word",
       sessionId: "session-3",
       documentKey: "doc-3",
+      permissionMode: "full_auto",
     });
 
     const [readTool, writeTool] = orchestrator.wrapTools([
@@ -108,5 +124,35 @@ describe("AgentOrchestrator", () => {
 
     expect(writeCalls).toBe(1);
     expect(payload.ok).toBe(true);
+  });
+
+  it("moves risky actions into waiting_on_user when permission mode requires approval", async () => {
+    const orchestrator = new AgentOrchestrator({
+      hostApp: "excel",
+      sessionId: "session-4",
+      documentKey: "doc-4",
+      permissionMode: "confirm_risky",
+    });
+
+    const [tool] = orchestrator.wrapTools([
+      defineTool({
+        name: "eval_officejs",
+        label: "Eval Office.js",
+        description: "unsafe",
+        parameters: Type.Object({
+          code: Type.String(),
+        }),
+        execute: async () => toolSuccess({ ok: true }),
+      }),
+    ]);
+
+    const result = await tool.execute("call-risky", {
+      code: "context.workbook.worksheets.getActiveWorksheet().getRange('A1').values = [['x']]",
+    });
+    const payload = JSON.parse(result.content[0].text);
+
+    expect(payload.success).toBe(false);
+    expect(orchestrator.getState().phase).toBe("waiting_on_user");
+    expect(orchestrator.getState().waitingState?.kind).toBe("approval");
   });
 });

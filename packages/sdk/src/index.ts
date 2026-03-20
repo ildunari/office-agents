@@ -2,6 +2,7 @@
 
 export { ContextManager } from "./context/ContextManager";
 export { HookRegistry } from "./hooks/HookRegistry";
+export { shouldPauseForAction } from "./hooks/permission-policy";
 export type { ImageResizeOptions, ResizedImage } from "./image-resize";
 export { resizeImage } from "./image-resize";
 // Lockdown
@@ -33,22 +34,31 @@ export {
 } from "./oauth";
 export { AgentOrchestrator } from "./orchestration/AgentOrchestrator";
 export type {
+  ActionClass,
   ApprovalRequest,
   ContextBudgetState,
   ExecutionPlan,
+  HandoffState,
   HookTraceEntry,
   HostApp,
+  LearnedMemory,
   OrchestratorState,
+  PermissionMode,
   PlanMode,
   PlanStep,
+  RetryLedgerEntry,
   TaskClassification,
+  TaskPhase,
   TaskRecord,
   UndoEntry,
   UpdatePlanInput,
+  WaitingState,
+  WorkspaceGuidance,
 } from "./orchestration/types";
 export { loadPdfDocument } from "./pdf";
 export { classifyTask } from "./planning/classifier";
 export { PlanManager } from "./planning/PlanManager";
+export { PlanReviewer } from "./planning/PlanReviewer";
 // Provider config
 export {
   API_TYPES,
@@ -61,6 +71,7 @@ export {
   type ThinkingLevel,
 } from "./provider-config";
 export { ReflectionEngine } from "./reflection/ReflectionEngine";
+export { RetryLedger } from "./reflection/RetryLedger";
 export {
   AgentRuntime,
   type RuntimeAdapter,

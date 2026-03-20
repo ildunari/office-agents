@@ -1,10 +1,12 @@
-import type { HostApp, HostScopeRef } from "../orchestration/types";
-
-export type ToolIntent = "read" | "write" | "plan" | "neutral";
+import type {
+  ActionClass,
+  HostApp,
+  HostScopeRef,
+} from "../orchestration/types";
 
 export interface HostRuntimeAdapter {
   hostApp: HostApp;
-  classifyTool(toolName: string): ToolIntent;
+  classifyAction(toolName: string): ActionClass;
   extractScopes(
     toolName: string,
     params: Record<string, unknown>,
@@ -14,4 +16,5 @@ export interface HostRuntimeAdapter {
     writeScopes: HostScopeRef[],
     readScopes: HostScopeRef[],
   ): boolean;
+  isDeniedScope(scope: HostScopeRef): boolean;
 }

@@ -38,6 +38,17 @@ const HIGH_RISK_HINTS = [
   "restructure",
 ];
 
+const DISCUSS_HINTS = [
+  "entire",
+  "whole",
+  "throughout",
+  "reorganize",
+  "clean up",
+  "make it better",
+  "polish",
+  "improve",
+];
+
 function includesAny(haystack: string, needles: string[]): boolean {
   return needles.some((needle) => haystack.includes(needle));
 }
@@ -57,6 +68,7 @@ function detectLikelyPatterns(hostApp: HostApp, prompt: string): string[] {
     const patternIds = ["excel.schema_inference"];
     if (includesAny(prompt, ["formula", "model", "forecast", "assumptions"])) {
       patternIds.push("excel.dependency_graph_materialization");
+      patternIds.push("excel.unit_consistency_check");
     }
     if (includesAny(prompt, ["rename", "move", "resize", "table", "sheet"])) {
       patternIds.push("excel.ripple_impact_estimation");
@@ -81,11 +93,14 @@ export function classifyTask(input: ClassifyTaskInput): TaskClassification {
   const highRisk =
     mutatesDocument &&
     (includesAny(prompt, HIGH_RISK_HINTS) ||
-      (input.hostApp === "word" && includesAny(prompt, ["contract", "legal"])));
+      (input.hostApp === "word" &&
+        includesAny(prompt, ["contract", "legal", "policy"])));
   const moderate =
     mutatesDocument ||
     prompt.length > 120 ||
-    includesAny(prompt, ["compare", "analyze", "summarize"]);
+    includesAny(prompt, ["compare", "analyze", "summarize", "forecast"]);
+  const requiresDiscussion =
+    highRisk || includesAny(prompt, DISCUSS_HINTS) || prompt.length > 160;
   const complexity = highRisk ? "complex" : moderate ? "moderate" : "simple";
   const risk = highRisk ? "high" : mutatesDocument ? "medium" : "low";
   const requiresApprovalBeforeMutation = highRisk;
@@ -101,11 +116,15 @@ export function classifyTask(input: ClassifyTaskInput): TaskClassification {
     risk,
     requiresVisiblePlan: planMode !== "implicit",
     requiresApprovalBeforeMutation,
+    requiresDiscussion,
     planMode,
     likelyPatternIds: detectLikelyPatterns(input.hostApp, prompt),
     targetScopes: defaultTargetScopes(input.hostApp),
     rationale: [
       mutatesDocument ? "Detected edit/build verbs." : "Read-only language.",
+      requiresDiscussion
+        ? "Broad or ambiguous wording benefits from a discuss phase."
+        : "Prompt is specific enough to plan directly.",
       highRisk
         ? "Broad or destructive wording raises approval requirements."
         : "No broad destructive intent detected.",

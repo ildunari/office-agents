@@ -10,31 +10,33 @@ function sheetScope(sheetId: number, range?: string): HostScopeRef {
 
 export const excelHostAdapter: HostRuntimeAdapter = {
   hostApp: "excel",
-  classifyTool(toolName) {
+  classifyAction(toolName) {
     if (toolName === "update_plan") return "plan";
     if (
       toolName === "get_cell_ranges" ||
       toolName === "get_range_as_csv" ||
       toolName === "search_data" ||
       toolName === "screenshot_range" ||
-      toolName === "get_all_objects" ||
-      toolName === "read_file" ||
-      toolName === "bash"
+      toolName === "get_all_objects"
     ) {
       return "read";
     }
+    if (toolName === "read_file" || toolName === "bash") {
+      return "external_io";
+    }
+    if (toolName === "set_cell_range" || toolName === "copy_to") {
+      return "benign_write";
+    }
     if (
-      toolName === "set_cell_range" ||
       toolName === "clear_cell_range" ||
-      toolName === "copy_to" ||
       toolName === "modify_sheet_structure" ||
       toolName === "modify_workbook_structure" ||
-      toolName === "resize_range" ||
-      toolName === "modify_object" ||
-      toolName === "eval_officejs"
+      toolName === "resize_range"
     ) {
-      return "write";
+      return "structural_write";
     }
+    if (toolName === "modify_object") return "destructive_write";
+    if (toolName === "eval_officejs") return "unsafe_eval";
     return "neutral";
   },
   extractScopes(toolName, params) {
@@ -60,5 +62,8 @@ export const excelHostAdapter: HostRuntimeAdapter = {
     return readScopes.some((scope) =>
       writePrefixes.has(scope.ref.split(":")[0]),
     );
+  },
+  isDeniedScope(scope) {
+    return scope.kind.includes("hidden") || scope.ref.includes("protected");
   },
 };

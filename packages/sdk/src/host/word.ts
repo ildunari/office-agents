@@ -13,19 +13,20 @@ function toParagraphScope(params: Record<string, unknown>): HostScopeRef {
 
 export const wordHostAdapter: HostRuntimeAdapter = {
   hostApp: "word",
-  classifyTool(toolName) {
+  classifyAction(toolName) {
     if (toolName === "update_plan") return "plan";
     if (
       toolName === "get_document_text" ||
       toolName === "get_document_structure" ||
       toolName === "get_ooxml" ||
-      toolName === "screenshot_document" ||
-      toolName === "read_file" ||
-      toolName === "bash"
+      toolName === "screenshot_document"
     ) {
       return "read";
     }
-    if (toolName === "execute_office_js") return "write";
+    if (toolName === "read_file" || toolName === "bash") {
+      return "external_io";
+    }
+    if (toolName === "execute_office_js") return "unsafe_eval";
     return "neutral";
   },
   extractScopes(toolName, params) {
@@ -47,5 +48,8 @@ export const wordHostAdapter: HostRuntimeAdapter = {
   },
   canWriteWithReadSet(_toolName, _writeScopes, readScopes) {
     return readScopes.length > 0;
+  },
+  isDeniedScope(scope) {
+    return scope.kind.includes("hidden") || scope.ref.includes("protected");
   },
 };

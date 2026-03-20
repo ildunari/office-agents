@@ -45,7 +45,49 @@ function sampleState(): OrchestratorState {
       },
       updatedAt: new Date().toISOString(),
     },
+    phase: "execute",
+    permissionMode: "confirm_risky",
     approvalRequest: null,
+    waitingState: {
+      kind: "approval",
+      reason: "Structural change requires approval.",
+      resumeMessage: "Approve the risky workbook mutation to continue.",
+      actionClass: "structural_write",
+      createdAt: new Date().toISOString(),
+    },
+    retryLedger: [
+      {
+        stepId: "step-1",
+        attempts: 1,
+        lastIssueSignature: "format-drift",
+        lastApproachHash: "hash-a",
+      },
+    ],
+    handoff: {
+      taskId: "task-1",
+      phase: "waiting_on_user",
+      resumeMessage: "Approve the risky workbook mutation to continue.",
+      lastCompletedStepId: "step-1",
+      updatedAt: new Date().toISOString(),
+    },
+    workspaceGuidance: {
+      version: 1,
+      notes: ["Preserve tracked changes in Word."],
+      updatedAt: new Date().toISOString(),
+    },
+    learnedMemory: {
+      version: 1,
+      entries: [
+        {
+          id: "pref-1",
+          signal: "style",
+          value: "Keep currency formatting unchanged unless asked.",
+          source: "verification",
+          updatedAt: new Date().toISOString(),
+          count: 2,
+        },
+      ],
+    },
     undoLog: [{ id: "undo-1", summary: "Checkpoint before rewrite", createdAt: new Date().toISOString() }],
     contextBudget: {
       usedPromptTokens: 1200,
@@ -78,5 +120,18 @@ describe("TaskStore", () => {
     const loaded = await store.load();
 
     expect(loaded).toEqual(state);
+  });
+
+  it("writes waiting and handoff artifacts separately for resumability", async () => {
+    const store = new TaskStore();
+    const state = sampleState();
+
+    await store.save(state);
+    const persisted = await store.loadArtifacts();
+
+    expect(persisted.waitingState).toEqual(state.waitingState);
+    expect(persisted.handoff).toEqual(state.handoff);
+    expect(persisted.workspaceGuidance).toEqual(state.workspaceGuidance);
+    expect(persisted.learnedMemory).toEqual(state.learnedMemory);
   });
 });

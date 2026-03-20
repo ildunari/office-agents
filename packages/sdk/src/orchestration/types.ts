@@ -3,6 +3,14 @@ export type HostApp = "word" | "excel" | "generic";
 export type TaskComplexity = "simple" | "moderate" | "complex";
 export type TaskRisk = "low" | "medium" | "high";
 export type PlanMode = "implicit" | "guided" | "approval_required";
+export type TaskPhase =
+  | "discuss"
+  | "plan"
+  | "plan_review"
+  | "execute"
+  | "verify"
+  | "waiting_on_user"
+  | "completed";
 export type TaskStatus =
   | "drafting_plan"
   | "awaiting_approval"
@@ -26,6 +34,20 @@ export type StepStatus =
   | "blocked"
   | "skipped";
 export type StepKind = "discover" | "transform" | "validate" | "communicate";
+export type PermissionMode =
+  | "read_only"
+  | "confirm_writes"
+  | "confirm_risky"
+  | "full_auto";
+export type ActionClass =
+  | "read"
+  | "benign_write"
+  | "structural_write"
+  | "destructive_write"
+  | "external_io"
+  | "unsafe_eval"
+  | "plan"
+  | "neutral";
 
 export interface HostScopeRef {
   kind: string;
@@ -38,6 +60,7 @@ export interface TaskClassification {
   risk: TaskRisk;
   requiresVisiblePlan: boolean;
   requiresApprovalBeforeMutation: boolean;
+  requiresDiscussion: boolean;
   planMode: PlanMode;
   likelyPatternIds: string[];
   targetScopes: HostScopeRef[];
@@ -109,6 +132,8 @@ export interface UpdatePlanInput {
 export interface ApprovalRequest {
   reason: string;
   uiMessage: string;
+  actionClass?: ActionClass;
+  scopes?: HostScopeRef[];
 }
 
 export interface UndoEntry {
@@ -133,10 +158,61 @@ export interface HookTraceEntry {
   at: string;
 }
 
+export interface WaitingState {
+  kind: "approval" | "clarification" | "retry_exhausted";
+  reason: string;
+  resumeMessage: string;
+  actionClass?: ActionClass;
+  scopes?: HostScopeRef[];
+  createdAt: string;
+}
+
+export interface RetryLedgerEntry {
+  stepId: string;
+  attempts: number;
+  lastIssueSignature?: string;
+  lastApproachHash?: string;
+}
+
+export interface HandoffState {
+  taskId: string;
+  phase: TaskPhase;
+  resumeMessage: string;
+  lastCompletedStepId?: string;
+  updatedAt: string;
+}
+
+export interface WorkspaceGuidance {
+  version: 1;
+  notes: string[];
+  updatedAt: string;
+}
+
+export interface LearnedMemoryEntry {
+  id: string;
+  signal: string;
+  value: string;
+  source: "verification" | "user" | "hook";
+  updatedAt: string;
+  count: number;
+}
+
+export interface LearnedMemory {
+  version: 1;
+  entries: LearnedMemoryEntry[];
+}
+
 export interface OrchestratorState {
   activeTask: TaskRecord | null;
   plan: ExecutionPlan | null;
+  phase: TaskPhase;
+  permissionMode: PermissionMode;
   approvalRequest: ApprovalRequest | null;
+  waitingState: WaitingState | null;
+  retryLedger: RetryLedgerEntry[];
+  handoff: HandoffState | null;
+  workspaceGuidance: WorkspaceGuidance;
+  learnedMemory: LearnedMemory;
   undoLog: UndoEntry[];
   contextBudget: ContextBudgetState | null;
   hookTrace: HookTraceEntry[];

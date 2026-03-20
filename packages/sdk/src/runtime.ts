@@ -33,10 +33,16 @@ import type {
   ApprovalRequest,
   ContextBudgetState,
   ExecutionPlan,
+  HandoffState,
   HookTraceEntry,
   HostApp,
+  LearnedMemory,
+  PermissionMode,
+  TaskPhase,
   TaskRecord,
   UndoEntry,
+  WaitingState,
+  WorkspaceGuidance,
 } from "./orchestration/types";
 import {
   applyProxyToModel,
@@ -111,7 +117,13 @@ export interface RuntimeState {
   vfsInvalidatedAt: number;
   activeTask: TaskRecord | null;
   planState: ExecutionPlan | null;
+  taskPhase: TaskPhase;
+  permissionMode: PermissionMode;
   approvalRequest: ApprovalRequest | null;
+  waitingState: WaitingState | null;
+  handoff: HandoffState | null;
+  workspaceGuidance: WorkspaceGuidance;
+  learnedMemory: LearnedMemory;
   contextBudget: ContextBudgetState | null;
   hookTrace: HookTraceEntry[];
   undoLog: UndoEntry[];
@@ -164,7 +176,17 @@ export class AgentRuntime {
       vfsInvalidatedAt: 0,
       activeTask: null,
       planState: null,
+      taskPhase: "discuss",
+      permissionMode: "confirm_risky",
       approvalRequest: null,
+      waitingState: null,
+      handoff: null,
+      workspaceGuidance: {
+        version: 1,
+        notes: [],
+        updatedAt: new Date().toISOString(),
+      },
+      learnedMemory: { version: 1, entries: [] },
       contextBudget: null,
       hookTrace: [],
       undoLog: [],
@@ -237,11 +259,18 @@ export class AgentRuntime {
       hostApp: this.getHostApp(),
       sessionId: this.currentSessionId ?? "pending-session",
       documentKey: this.documentId ?? "pending-document",
+      permissionMode: this.state.permissionMode,
       onStateChange: (orchestratorState) => {
         this.update({
           activeTask: orchestratorState.activeTask,
           planState: orchestratorState.plan,
+          taskPhase: orchestratorState.phase,
+          permissionMode: orchestratorState.permissionMode,
           approvalRequest: orchestratorState.approvalRequest,
+          waitingState: orchestratorState.waitingState,
+          handoff: orchestratorState.handoff,
+          workspaceGuidance: orchestratorState.workspaceGuidance,
+          learnedMemory: orchestratorState.learnedMemory,
           contextBudget:
             orchestratorState.contextBudget ?? this.state.contextBudget,
           hookTrace: orchestratorState.hookTrace,
@@ -254,7 +283,13 @@ export class AgentRuntime {
     this.update({
       activeTask: orchestratorState.activeTask,
       planState: orchestratorState.plan,
+      taskPhase: orchestratorState.phase,
+      permissionMode: orchestratorState.permissionMode,
       approvalRequest: orchestratorState.approvalRequest,
+      waitingState: orchestratorState.waitingState,
+      handoff: orchestratorState.handoff,
+      workspaceGuidance: orchestratorState.workspaceGuidance,
+      learnedMemory: orchestratorState.learnedMemory,
       contextBudget:
         orchestratorState.contextBudget ?? this.state.contextBudget,
       hookTrace: orchestratorState.hookTrace,
@@ -271,6 +306,15 @@ export class AgentRuntime {
     if (!this.orchestrator) return;
     const persisted = await this.taskStore.load();
     this.orchestrator.hydrateState(persisted);
+  }
+
+  approvePending() {
+    this.orchestrator?.approveWaiting();
+  }
+
+  setPermissionMode(mode: PermissionMode) {
+    this.orchestrator?.setPermissionMode(mode);
+    this.update({ permissionMode: mode });
   }
 
   getAvailableProviders(): string[] {

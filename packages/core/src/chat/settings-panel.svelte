@@ -17,6 +17,7 @@
     saveWebConfig,
     THINKING_LEVELS,
     type OAuthFlowState,
+    type PermissionMode,
     type ThinkingLevel,
   } from "@office-agents/sdk";
   import {
@@ -72,6 +73,7 @@
   let oauthCodeInput = $state("");
 
   const followMode = $derived($runtimeState.providerConfig?.followMode ?? true);
+  const permissionMode = $derived($runtimeState.permissionMode);
   const expandToolCalls = $derived(
     $runtimeState.providerConfig?.expandToolCalls ?? false,
   );
@@ -96,6 +98,32 @@
 
   const inputStyle =
     "border-radius: var(--chat-radius); font-family: var(--chat-font-mono)";
+  const permissionModes: Array<{
+    value: PermissionMode;
+    label: string;
+    hint: string;
+  }> = [
+    {
+      value: "read_only",
+      label: "Read only",
+      hint: "Blocks all writes and unsafe eval",
+    },
+    {
+      value: "confirm_writes",
+      label: "Confirm writes",
+      hint: "Ask before any write",
+    },
+    {
+      value: "confirm_risky",
+      label: "Confirm risky",
+      hint: "Allow benign writes, ask for risky actions",
+    },
+    {
+      value: "full_auto",
+      label: "Full auto",
+      hint: "Allow all actions except denied scopes",
+    },
+  ];
 
   function updateAndSync(
     updates: Partial<{
@@ -655,6 +683,28 @@
           expandToolCalls ? "Collapse tool calls by default" : "Expand tool calls by default",
         )}
       </div>
+
+      <label class="block">
+        <span class="block text-xs text-(--chat-text-secondary) mb-1.5">
+          Permission Mode
+        </span>
+        <select
+          value={permissionMode}
+          onchange={(event) =>
+            chat.setPermissionMode(
+              (event.currentTarget as HTMLSelectElement).value as PermissionMode,
+            )}
+          class="w-full bg-(--chat-input-bg) text-(--chat-text-primary) text-sm px-3 py-2 border border-(--chat-border) focus:outline-none focus:border-(--chat-border-active)"
+          style={inputStyle}
+        >
+          {#each permissionModes as mode (mode.value)}
+            <option value={mode.value}>{mode.label}</option>
+          {/each}
+        </select>
+        <p class="text-[10px] text-(--chat-text-muted) mt-1">
+          {permissionModes.find((mode) => mode.value === permissionMode)?.hint}
+        </p>
+      </label>
 
       <div class="border-t border-(--chat-border) pt-4 space-y-3">
         <div class="text-[10px] uppercase tracking-widest text-(--chat-text-muted)">

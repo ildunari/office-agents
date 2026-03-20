@@ -76,6 +76,8 @@ describe("AgentRuntime", () => {
     expect(models).toEqual([]);
     expect(runtime.getState().planState).toBeNull();
     expect(runtime.getState().activeTask).toBeNull();
+    expect(runtime.getState().taskPhase).toBe("discuss");
+    expect(runtime.getState().permissionMode).toBe("confirm_risky");
     runtime.dispose();
   });
 
