@@ -9,15 +9,18 @@ export {
 export { createUpdatePlanTool } from "./plan-tool";
 export type {
   ExecutionPlan,
+  ExecutionUnit,
   PlanMode,
   PlanRevisionNote,
   PlanStatus,
   PlanStep,
   RiskLevel,
+  RuntimeMode,
   StepKind,
   StepStatus,
   TaskClassification,
   TaskComplexity,
   TaskRecord,
   TaskStatus,
+  VerificationIntent,
 } from "./types";

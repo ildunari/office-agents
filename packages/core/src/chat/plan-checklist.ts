@@ -15,6 +15,31 @@ export interface PlanChecklistPlan {
 
 export interface PlanChecklistTask {
   status?: string | null;
+  handoff?: {
+    nextRecommendedAction?: string;
+    incompleteVerifications?: string[];
+    summary?: string;
+  } | null;
+}
+
+export interface PlanChecklistApproval {
+  reason?: string | null;
+  destructive?: boolean | null;
+}
+
+export interface PlanChecklistVerification {
+  status?: string | null;
+  results?: Array<{ suiteId: string; status: string }>;
+}
+
+export interface PlanChecklistPattern {
+  id: string;
+  reason: string;
+}
+
+export interface PlanChecklistContextBudget {
+  action: string;
+  usagePct: number;
 }
 
 export function stepLabel(step: PlanChecklistStep): string {
@@ -24,6 +49,45 @@ export function stepLabel(step: PlanChecklistStep): string {
 export function statusLabel(status?: string | null): string {
   if (!status) return "planned";
   return status.replace(/_/g, " ");
+}
+
+export function modeLabel(mode?: string | null): string {
+  if (!mode) return "discuss";
+  return mode.replace(/_/g, " ");
+}
+
+export function verificationLabel(
+  verification?: PlanChecklistVerification | null,
+): string {
+  if (!verification?.status) return "not run";
+  return statusLabel(verification.status);
+}
+
+export function incompleteVerificationCount(
+  task?: PlanChecklistTask | null,
+): number {
+  return task?.handoff?.incompleteVerifications?.length ?? 0;
+}
+
+export function shouldShowApprove(
+  mode?: string | null,
+  approval?: PlanChecklistApproval | null,
+): boolean {
+  return mode === "awaiting_approval" && Boolean(approval);
+}
+
+export function shouldShowResume(
+  mode?: string | null,
+  task?: PlanChecklistTask | null,
+): boolean {
+  return mode === "blocked" && Boolean(task?.handoff);
+}
+
+export function contextBudgetLabel(
+  budget?: PlanChecklistContextBudget | null,
+): string {
+  if (!budget) return "not tracked";
+  return `${budget.action} @ ${budget.usagePct}%`;
 }
 
 export function getPlanProgress(plan: PlanChecklistPlan | null): {

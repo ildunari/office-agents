@@ -34,6 +34,11 @@ export const WORD_REASONING_PATTERNS: ReasoningPattern[] = [
     defaultState: () => ({}),
     triggers: (_classification, plan) =>
       matchesAny(requestText(plan), SEMANTIC_PATTERNS),
+    describeActivation: () => ({
+      id: "word:semantic-load-bearing",
+      reason: "The request implies summarization or compression.",
+      expectedVerifierIds: ["word:coherence-reread"],
+    }),
     activate: (registry) => {
       const hooks = asHookRegistry(registry);
       return hooks.registerPre({
@@ -67,6 +72,11 @@ export const WORD_REASONING_PATTERNS: ReasoningPattern[] = [
     triggers: (classification, plan) =>
       classification.risk !== "low" &&
       /\b(format|style|rewrite|replace|preserve)\b/i.test(requestText(plan)),
+    describeActivation: () => ({
+      id: "word:format-fingerprinting",
+      reason: "The request risks changing existing formatting.",
+      expectedVerifierIds: ["word:format-preserved"],
+    }),
     activate: (registry) => {
       const hooks = asHookRegistry(registry);
       return hooks.registerPre({
@@ -102,6 +112,11 @@ export const WORD_REASONING_PATTERNS: ReasoningPattern[] = [
       /\b(section|heading|document|conclusion|introduction|flow|coherence)\b/i.test(
         requestText(plan),
       ),
+    describeActivation: () => ({
+      id: "word:coherence-horizon",
+      reason: "The request touches section-level coherence.",
+      expectedVerifierIds: ["word:coherence-reread"],
+    }),
     activate: (registry) => {
       const hooks = asHookRegistry(registry);
       return hooks.registerPre({
@@ -134,6 +149,11 @@ export const WORD_REASONING_PATTERNS: ReasoningPattern[] = [
       /\b(redline|redlining|track changes|tracked changes|review|comment)\b/i.test(
         requestText(plan),
       ),
+    describeActivation: () => ({
+      id: "word:revision-layer-awareness",
+      reason: "The request is revision/comment sensitive.",
+      expectedVerifierIds: ["word:revision-safe"],
+    }),
     activate: (registry) => {
       const hooks = asHookRegistry(registry);
       return hooks.registerPre({
@@ -167,6 +187,11 @@ export const WORD_REASONING_PATTERNS: ReasoningPattern[] = [
     defaultState: () => ({}),
     triggers: (_classification, plan) =>
       matchesAny(requestText(plan), NUMERIC_PATTERNS),
+    describeActivation: () => ({
+      id: "word:numeric-sanctity",
+      reason: "The request contains numeric or deadline-sensitive content.",
+      expectedVerifierIds: ["word:coherence-reread"],
+    }),
     activate: (registry) => {
       const hooks = asHookRegistry(registry);
       return hooks.registerPre({
@@ -200,6 +225,11 @@ export const WORD_REASONING_PATTERNS: ReasoningPattern[] = [
       /\b(long document|entire document|whole document|appendix|chapter)\b/i.test(
         requestText(plan),
       ),
+    describeActivation: () => ({
+      id: "word:long-document-working-set",
+      reason: "The request implies a large document scope.",
+      expectedVerifierIds: ["word:coherence-reread"],
+    }),
     activate: (registry) => {
       const hooks = asHookRegistry(registry);
       return hooks.registerPre({

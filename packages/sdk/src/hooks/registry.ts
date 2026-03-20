@@ -273,6 +273,13 @@ export class HookRegistry {
     return this.sessionState;
   }
 
+  getRegisteredHookNames(): string[] {
+    return [
+      ...this.preHooks.map((hook) => hook.name),
+      ...this.postHooks.map((hook) => hook.name),
+    ];
+  }
+
   resetSessionState(): void {
     this.sessionState = HookRegistry.createSessionState();
     this.faultCounts.clear();

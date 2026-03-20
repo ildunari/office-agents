@@ -7,6 +7,11 @@ import { getWorkbookMetadata, navigateTo } from "./excel/api";
 import { getExcelReasoningPatterns } from "./patterns";
 import { buildExcelSystemPrompt } from "./system-prompt";
 import { EXCEL_TOOLS } from "./tools";
+import {
+  buildExcelHandoffSummary,
+  estimateExcelScopeRisk,
+  getExcelVerificationSuites,
+} from "./verifiers";
 import { getCustomCommands } from "./vfs/custom-commands";
 
 function parseCitationUri(
@@ -46,6 +51,9 @@ export function createExcelAdapter(): AppAdapter {
     SelectionIndicator,
     buildSystemPrompt: buildExcelSystemPrompt,
     getReasoningPatterns: getExcelReasoningPatterns,
+    getVerificationSuites: getExcelVerificationSuites,
+    buildHandoffSummary: buildExcelHandoffSummary,
+    estimateScopeRisk: estimateExcelScopeRisk,
 
     getDocumentId: async () => {
       return getOrCreateDocumentId();

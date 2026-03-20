@@ -163,6 +163,14 @@
   const SelectionIndicator = $derived(adapter.SelectionIndicator);
   const activePlan = $derived($runtimeState.activePlan);
   const activeTask = $derived($runtimeState.activeTask);
+  const runtimeMode = $derived($runtimeState.mode);
+  const approvalRequest = $derived($runtimeState.approvalRequest);
+  const lastVerification = $derived($runtimeState.lastVerification);
+  const degradedGuardrails = $derived($runtimeState.degradedGuardrails);
+  const activePatternMetadata = $derived($runtimeState.activePatternMetadata);
+  const activeHookNames = $derived($runtimeState.activeHookNames);
+  const contextBudgetState = $derived($runtimeState.contextBudgetState);
+  const lastPromptNotes = $derived($runtimeState.lastPromptNotes);
 </script>
 
 <div
@@ -340,7 +348,18 @@
   </div>
 
   {#if activeTab === "chat"}
-    <PlanChecklist plan={activePlan} task={activeTask} />
+    <PlanChecklist
+      plan={activePlan}
+      task={activeTask}
+      mode={runtimeMode}
+      approval={approvalRequest}
+      verification={lastVerification}
+      degradedGuardrails={degradedGuardrails}
+      activePatterns={activePatternMetadata}
+      activeHookNames={activeHookNames}
+      contextBudget={contextBudgetState}
+      lastPromptNotes={lastPromptNotes}
+    />
     <MessageList />
     {#if SelectionIndicator}
       <SelectionIndicator />

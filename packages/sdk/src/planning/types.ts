@@ -21,6 +21,15 @@ export interface TaskClassification {
   rationale: string;
 }
 
+export type RuntimeMode =
+  | "discuss"
+  | "plan"
+  | "execute"
+  | "verify"
+  | "awaiting_approval"
+  | "blocked"
+  | "completed";
+
 export type StepKind = "read" | "analyze" | "write" | "verify" | "rollback";
 
 export interface PlanStep {
@@ -45,11 +54,32 @@ export interface PlanRevisionNote {
   reason: string;
 }
 
+export interface ExecutionUnit {
+  id: string;
+  title: string;
+  stepIds: string[];
+  mode: Exclude<RuntimeMode, "discuss" | "completed">;
+}
+
+export interface VerificationIntent {
+  id: string;
+  label: string;
+  expectedEffect: string;
+}
+
 export interface ExecutionPlan {
   id: string;
   userRequest: string;
+  summary?: string;
   mode: PlanMode;
   status: PlanStatus;
+  activeStepId?: string | null;
+  requirements: string[];
+  strategy: string[];
+  executionUnits: ExecutionUnit[];
+  verification: VerificationIntent[];
+  approvalRequired: boolean;
+  expectedEffects: string[];
   steps: PlanStep[];
   createdAt: number;
   updatedAt: number;
@@ -62,9 +92,40 @@ export type TaskStatus = "pending" | "in_progress" | "completed" | "failed";
 export interface TaskRecord {
   id: string;
   userRequest: string;
+  mode?: RuntimeMode;
   status: TaskStatus;
   planId?: string;
   undoNarrative?: string;
+  attachments?: string[];
+  scopeSummary?: string;
+  constraints?: string[];
+  expectedEffects?: string[];
+  approvalPending?: boolean;
+  verificationSummary?: {
+    status: "pending" | "passed" | "failed" | "retryable" | "skipped";
+    failedVerifierIds?: string[];
+    retryable?: boolean;
+    lastVerifiedAt?: number;
+  };
+  handoff?: {
+    taskId: string;
+    mode: RuntimeMode;
+    currentIntent: string;
+    summary: string;
+    activeScope?: string;
+    constraints: string[];
+    incompleteVerifications: string[];
+    nextRecommendedAction: string;
+    attachmentPaths?: string[];
+    updatedAt: number;
+  };
+  toolExecutions?: Array<{
+    toolCallId: string;
+    toolName: string;
+    isError: boolean;
+    resultText: string;
+    timestamp: number;
+  }>;
   toolCallIds: string[];
   createdAt: number;
   updatedAt: number;

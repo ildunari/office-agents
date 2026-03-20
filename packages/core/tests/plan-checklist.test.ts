@@ -1,8 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
+  contextBudgetLabel,
   getPlanProgress,
+  incompleteVerificationCount,
+  modeLabel,
+  shouldShowApprove,
+  shouldShowResume,
   statusLabel,
   stepLabel,
+  verificationLabel,
 } from "../src/chat/plan-checklist";
 
 const activePlan = {
@@ -19,6 +25,11 @@ describe("PlanChecklist", () => {
   it("formats status labels cleanly", () => {
     expect(statusLabel("in_progress")).toBe("in progress");
     expect(statusLabel(undefined)).toBe("planned");
+    expect(modeLabel("awaiting_approval")).toBe("awaiting approval");
+    expect(verificationLabel({ status: "retryable" })).toBe("retryable");
+    expect(contextBudgetLabel({ action: "compact", usagePct: 76 })).toBe(
+      "compact @ 76%",
+    );
   });
 
   it("prefers title, then description, then id for step labels", () => {
@@ -45,5 +56,31 @@ describe("PlanChecklist", () => {
       inFlight: 1,
       percent: (2 / 3) * 100,
     });
+  });
+
+  it("shows approve and resume affordances only for the matching runtime modes", () => {
+    expect(
+      shouldShowApprove("awaiting_approval", {
+        reason: "Destructive workbook edit",
+      }),
+    ).toBe(true);
+    expect(shouldShowApprove("execute", null)).toBe(false);
+
+    expect(
+      shouldShowResume("blocked", {
+        handoff: {
+          nextRecommendedAction: "Resume after review",
+          incompleteVerifications: ["suite-a", "suite-b"],
+        },
+      }),
+    ).toBe(true);
+    expect(
+      incompleteVerificationCount({
+        handoff: {
+          nextRecommendedAction: "Resume",
+          incompleteVerifications: ["suite-a", "suite-b"],
+        },
+      }),
+    ).toBe(2);
   });
 });

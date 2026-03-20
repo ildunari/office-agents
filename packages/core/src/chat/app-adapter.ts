@@ -3,8 +3,10 @@ import type {
   Disposable,
   HookRegistry,
   ReasoningPattern,
+  ScopeRiskEstimate,
   SkillMeta,
   StorageNamespace,
+  VerificationSuite,
 } from "@office-agents/sdk";
 import type { CustomCommand } from "just-bash/browser";
 import type { Component } from "svelte";
@@ -45,6 +47,14 @@ export interface AppAdapter {
     registry: HookRegistry,
   ) => Disposable | Disposable[] | undefined;
   getReasoningPatterns?: () => ReasoningPattern[];
+  getVerificationSuites?: () => VerificationSuite[];
+  buildHandoffSummary?: (
+    task: import("@office-agents/sdk").TaskRecord,
+  ) => MaybePromise<string>;
+  estimateScopeRisk?: (
+    request: string,
+    classification: import("@office-agents/sdk").TaskClassification,
+  ) => MaybePromise<ScopeRiskEstimate>;
   hasImageSearch?: boolean;
   showFollowModeToggle?: boolean;
   handleLinkClick?: (

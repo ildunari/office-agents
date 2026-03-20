@@ -180,8 +180,33 @@ export function buildDefaultPlan(
   return {
     id: crypto.randomUUID(),
     userRequest,
+    summary: userRequest,
     mode: "auto",
     status: "active",
+    activeStepId: steps[0]?.id ?? null,
+    requirements: [userRequest],
+    strategy: [
+      "Inspect the current host state before mutation.",
+      "Apply the minimal change needed for the request.",
+      "Verify the observed result against the intended effect.",
+    ],
+    executionUnits: [
+      {
+        id: "unit-default",
+        title: "Execute default plan",
+        stepIds: steps.map((step) => step.id),
+        mode: "execute",
+      },
+    ],
+    verification: [
+      {
+        id: "verify-default",
+        label: "Verify final host state",
+        expectedEffect: "The final state matches the request.",
+      },
+    ],
+    approvalRequired: classification.risk === "high",
+    expectedEffects: ["The final state matches the request."],
     steps,
     createdAt: now,
     updatedAt: now,

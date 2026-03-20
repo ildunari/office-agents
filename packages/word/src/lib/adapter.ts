@@ -12,6 +12,11 @@ import wordApiOnlineDts from "./docs/word-officejs-api-online.d.ts?raw";
 import { getWordReasoningPatterns } from "./patterns";
 import { buildWordSystemPrompt } from "./system-prompt";
 import { WORD_TOOLS } from "./tools";
+import {
+  buildWordHandoffSummary,
+  estimateWordScopeRisk,
+  getWordVerificationSuites,
+} from "./verifiers";
 import { getCustomCommands } from "./vfs/custom-commands";
 
 /* global Word */
@@ -44,6 +49,9 @@ export function createWordAdapter(): AppAdapter {
     SelectionIndicator,
     buildSystemPrompt: buildWordSystemPrompt,
     getReasoningPatterns: getWordReasoningPatterns,
+    getVerificationSuites: getWordVerificationSuites,
+    buildHandoffSummary: buildWordHandoffSummary,
+    estimateScopeRisk: estimateWordScopeRisk,
     registerHooks: (registry) => [
       registry.registerPre(formatFingerprintPreHook),
       registry.registerPost(formatFingerprintRecordHook),

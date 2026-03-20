@@ -1,5 +1,6 @@
 import type { OfficeApp } from "../context/types";
 import type { ExecutionPlan, TaskClassification } from "../planning";
+import type { ActivePatternMetadata } from "../verification/types";
 
 export interface Disposable {
   dispose(): void;
@@ -13,6 +14,10 @@ export interface ReasoningPattern<TState = unknown> {
     classification: TaskClassification,
     plan?: ExecutionPlan,
   ) => boolean;
+  describeActivation?: (
+    classification: TaskClassification,
+    plan?: ExecutionPlan,
+  ) => ActivePatternMetadata;
   activate: (registry: unknown, state: TState) => Disposable;
   defaultState: () => TState;
 }

@@ -1,9 +1,16 @@
 import type { TaskClassification, TaskRecord } from "../planning";
 import { saveTaskRecord, type TaskRecordEntry } from "../storage/db";
+import type { HandoffPacket, VerificationResult } from "../verification/types";
 import { buildUndoNarrative, type TrackedMutation } from "./undo";
 
 export interface BeginTaskOptions {
   planId?: string;
+  attachments?: string[];
+  scopeSummary?: string;
+  constraints?: string[];
+  expectedEffects?: string[];
+  mode?: TaskRecord["mode"];
+  approvalPending?: boolean;
 }
 
 export class TaskTracker {
@@ -19,9 +26,16 @@ export class TaskTracker {
     this.currentTask = {
       id: crypto.randomUUID(),
       userRequest,
+      mode: options.mode ?? (classification.needsPlan ? "plan" : "discuss"),
       status: classification.needsPlan ? "in_progress" : "pending",
       planId: options.planId,
+      attachments: options.attachments,
+      scopeSummary: options.scopeSummary,
+      constraints: options.constraints ?? [],
+      expectedEffects: options.expectedEffects ?? [],
+      approvalPending: options.approvalPending ?? false,
       toolCallIds: [],
+      toolExecutions: [],
       createdAt: now,
       updatedAt: now,
     };
@@ -56,6 +70,67 @@ export class TaskTracker {
 
   recordMutation(mutation: TrackedMutation): void {
     this.mutations.push(mutation);
+  }
+
+  recordToolExecution(
+    execution: NonNullable<TaskRecord["toolExecutions"]>[number],
+  ): void {
+    if (!this.currentTask) return;
+    this.currentTask = {
+      ...this.currentTask,
+      toolExecutions: [...(this.currentTask.toolExecutions ?? []), execution],
+      updatedAt: Date.now(),
+    };
+  }
+
+  setMode(mode: TaskRecord["mode"]): void {
+    if (!this.currentTask) return;
+    this.currentTask = {
+      ...this.currentTask,
+      mode,
+      updatedAt: Date.now(),
+    };
+  }
+
+  setApprovalPending(approvalPending: boolean): void {
+    if (!this.currentTask) return;
+    this.currentTask = {
+      ...this.currentTask,
+      approvalPending,
+      updatedAt: Date.now(),
+    };
+  }
+
+  setVerificationResults(
+    results: VerificationResult[],
+    status: NonNullable<TaskRecord["verificationSummary"]>["status"],
+    retryable: boolean,
+  ): void {
+    if (!this.currentTask) return;
+    this.currentTask = {
+      ...this.currentTask,
+      verificationSummary: {
+        status,
+        retryable,
+        failedVerifierIds: results
+          .filter(
+            (result) =>
+              result.status === "failed" || result.status === "retryable",
+          )
+          .map((result) => result.suiteId),
+        lastVerifiedAt: Date.now(),
+      },
+      updatedAt: Date.now(),
+    };
+  }
+
+  setHandoff(handoff: HandoffPacket | null): void {
+    if (!this.currentTask) return;
+    this.currentTask = {
+      ...this.currentTask,
+      handoff: handoff ?? undefined,
+      updatedAt: Date.now(),
+    };
   }
 
   buildUndoNarrative(): string {

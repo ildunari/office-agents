@@ -56,6 +56,14 @@ export class ChatController {
     return this.#runtime.sendMessage(content, attachments);
   }
 
+  approveActivePlan() {
+    return this.#runtime.approveActivePlan();
+  }
+
+  resumeFromHandoff() {
+    return this.#runtime.resumeFromHandoff();
+  }
+
   setProviderConfig(config: ProviderConfig) {
     this.#runtime.setProviderConfig(config);
   }

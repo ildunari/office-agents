@@ -1,9 +1,11 @@
 import type { ExecutionPlan, TaskClassification } from "../planning";
+import type { ActivePatternMetadata } from "../verification/types";
 import type { Disposable, ReasoningPattern } from "./types";
 
 interface ActivePattern {
   id: string;
   disposable: Disposable;
+  metadata: ActivePatternMetadata;
 }
 
 export class PatternRegistry {
@@ -27,6 +29,10 @@ export class PatternRegistry {
     return Array.from(this.active.keys());
   }
 
+  getActivePatternMetadata(): ActivePatternMetadata[] {
+    return Array.from(this.active.values()).map((entry) => entry.metadata);
+  }
+
   activateMatching(
     registry: unknown,
     classification: TaskClassification,
@@ -41,7 +47,14 @@ export class PatternRegistry {
         continue;
       }
       const disposable = pattern.activate(registry, pattern.defaultState());
-      this.active.set(pattern.id, { id: pattern.id, disposable });
+      this.active.set(pattern.id, {
+        id: pattern.id,
+        disposable,
+        metadata: pattern.describeActivation?.(classification, plan) ?? {
+          id: pattern.id,
+          reason: "Pattern matched current task classification.",
+        },
+      });
       activated.push(pattern.id);
     }
     return activated;

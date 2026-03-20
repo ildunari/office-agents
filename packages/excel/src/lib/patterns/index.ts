@@ -107,6 +107,7 @@ function notePattern(
   id: string,
   note: string,
   toolNames: string[],
+  expectedVerifierIds: string[],
   trigger: (request: string) => boolean,
 ): ReasoningPattern {
   return {
@@ -116,6 +117,11 @@ function notePattern(
     defaultState: () => ({}),
     triggers: (classification, plan) =>
       classification.needsPlan && trigger(requestText(plan)),
+    describeActivation: () => ({
+      id,
+      reason: note,
+      expectedVerifierIds,
+    }),
     activate: (registry) => {
       const hooks = asHookRegistry(registry);
       const disposables = toolNames.map((toolName) =>
@@ -147,6 +153,7 @@ export function getExcelReasoningPatterns(): ReasoningPattern[] {
       "excel:dependency-graph",
       "Check dependency graph impact before changing formulas or structural spreadsheet logic.",
       ["eval_officejs", "set_cell_range", "modify_object"],
+      ["excel:ripple-check"],
       (request) =>
         /\b(formula|forecast|downstream|total|recalculate|calc)\b/i.test(
           request,
@@ -156,6 +163,7 @@ export function getExcelReasoningPatterns(): ReasoningPattern[] {
       "excel:schema-inference",
       "Infer headers, totals, and calculated columns before rewriting tabular workbook regions.",
       ["get_cell_ranges", "get_range_as_csv", "search_data"],
+      ["excel:ripple-check"],
       (request) =>
         /\b(table|column|schema|dataset|rows|headers)\b/i.test(request),
     ),
@@ -163,6 +171,7 @@ export function getExcelReasoningPatterns(): ReasoningPattern[] {
       "excel:unit-consistency",
       "Preserve unit consistency across currency, percentage, and scaled values before writing formulas.",
       ["eval_officejs", "set_cell_range"],
+      ["excel:formula-errors"],
       (request) =>
         /\b(percent|%|currency|revenue|margin|rate|price|cost)\b/i.test(
           request,
@@ -172,6 +181,7 @@ export function getExcelReasoningPatterns(): ReasoningPattern[] {
       "excel:ripple-impact",
       "Scan ripple impact on charts, pivots, validations, and formulas before structural workbook edits.",
       ["modify_sheet_structure", "modify_workbook_structure", "modify_object"],
+      ["excel:ripple-check", "excel:binding-sanity"],
       (request) =>
         /\b(rename|insert|delete|resize|move|sheet|workbook|pivot|chart)\b/i.test(
           request,
@@ -181,6 +191,7 @@ export function getExcelReasoningPatterns(): ReasoningPattern[] {
       "excel:formula-audit",
       "Audit formula semantics after edits and verify references still align with the intended model.",
       ["eval_officejs", "set_cell_range"],
+      ["excel:formula-errors"],
       (request) =>
         /\b(formula|audit|model|scenario|projection)\b/i.test(request),
     ),
@@ -188,6 +199,7 @@ export function getExcelReasoningPatterns(): ReasoningPattern[] {
       "excel:error-diagnosis",
       "Re-check the workbook for spreadsheet error surfaces like #REF! and #VALUE! after risky edits.",
       ["eval_officejs", "set_cell_range", "modify_object"],
+      ["excel:formula-errors"],
       (request) => /\b(error|diagnose|fix|repair|#ref|#value)\b/i.test(request),
     ),
   ];

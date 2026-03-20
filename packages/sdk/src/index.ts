@@ -77,16 +77,19 @@ export type { ReasoningPattern } from "./patterns/types";
 export { loadPdfDocument } from "./pdf";
 export type {
   ExecutionPlan,
+  ExecutionUnit,
   PlanMode,
   PlanRevisionNote,
   PlanStatus,
   PlanStep,
+  RuntimeMode,
   StepKind,
   StepStatus,
   TaskClassification,
   TaskComplexity,
   TaskRecord,
   TaskStatus,
+  VerificationIntent,
 } from "./planning";
 // Planning
 export {
@@ -194,6 +197,19 @@ export {
   truncateHead,
   truncateTail,
 } from "./truncate";
+export type {
+  ActivePatternMetadata,
+  ApprovalRequest,
+  HandoffPacket,
+  ScopeRiskEstimate,
+  VerificationContext,
+  VerificationResult,
+  VerificationRunSummary,
+  VerificationStatus,
+  VerificationSuite,
+} from "./verification";
+// Verification
+export { VerificationEngine } from "./verification";
 // VFS
 export {
   deleteFile,
