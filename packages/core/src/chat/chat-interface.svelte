@@ -21,6 +21,7 @@
   import ChatInput from "./chat-input.svelte";
   import FilesPanel from "./files-panel.svelte";
   import MessageList from "./message-list.svelte";
+  import PlanChecklist from "./plan-checklist.svelte";
   import SettingsPanel from "./settings-panel.svelte";
   import type { ChatTab } from "./types";
 
@@ -160,6 +161,8 @@
   const followMode = $derived($runtimeState.providerConfig?.followMode ?? true);
   const HeaderExtras = $derived(adapter.HeaderExtras);
   const SelectionIndicator = $derived(adapter.SelectionIndicator);
+  const activePlan = $derived($runtimeState.activePlan);
+  const activeTask = $derived($runtimeState.activeTask);
 </script>
 
 <div
@@ -337,6 +340,7 @@
   </div>
 
   {#if activeTab === "chat"}
+    <PlanChecklist plan={activePlan} task={activeTask} />
     <MessageList />
     {#if SelectionIndicator}
       <SelectionIndicator />

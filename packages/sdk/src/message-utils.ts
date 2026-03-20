@@ -39,6 +39,12 @@ export interface SessionStats {
   lastInputTokens: number;
 }
 
+const INTERNAL_TOOL_NAMES = new Set(["update_plan"]);
+
+function isInternalToolName(name: string): boolean {
+  return INTERNAL_TOOL_NAMES.has(name);
+}
+
 export function stripEnrichment(
   content: string | { type: string; text?: string }[],
   metadataTag?: string,
@@ -83,22 +89,27 @@ export function extractPartsFromAssistantMessage(
     }
   }
 
-  return assistantMsg.content.map((block): MessagePart => {
+  return assistantMsg.content.flatMap((block): MessagePart[] => {
     if (block.type === "text") {
-      return { type: "text", text: block.text };
+      return [{ type: "text", text: block.text }];
     }
     if (block.type === "thinking") {
-      return { type: "thinking", thinking: block.thinking };
+      return [{ type: "thinking", thinking: block.thinking }];
+    }
+    if (isInternalToolName(block.name)) {
+      return [];
     }
     const existing = existingToolCalls.get(block.id);
-    return {
-      type: "toolCall",
-      id: block.id,
-      name: block.name,
-      args: block.arguments as Record<string, unknown>,
-      status: existing?.type === "toolCall" ? existing.status : "pending",
-      result: existing?.type === "toolCall" ? existing.result : undefined,
-    };
+    return [
+      {
+        type: "toolCall",
+        id: block.id,
+        name: block.name,
+        args: block.arguments as Record<string, unknown>,
+        status: existing?.type === "toolCall" ? existing.status : "pending",
+        result: existing?.type === "toolCall" ? existing.result : undefined,
+      },
+    ];
   });
 }
 

@@ -1,5 +1,11 @@
 import type { AgentTool } from "@mariozechner/pi-agent-core";
-import type { SkillMeta, StorageNamespace } from "@office-agents/sdk";
+import type {
+  Disposable,
+  HookRegistry,
+  ReasoningPattern,
+  SkillMeta,
+  StorageNamespace,
+} from "@office-agents/sdk";
 import type { CustomCommand } from "just-bash/browser";
 import type { Component } from "svelte";
 
@@ -35,6 +41,10 @@ export interface AppAdapter {
   emptyStateMessage?: string;
   staticFiles?: Record<string, string>;
   customCommands?: () => CustomCommand[];
+  registerHooks?: (
+    registry: HookRegistry,
+  ) => Disposable | Disposable[] | undefined;
+  getReasoningPatterns?: () => ReasoningPattern[];
   hasImageSearch?: boolean;
   showFollowModeToggle?: boolean;
   handleLinkClick?: (

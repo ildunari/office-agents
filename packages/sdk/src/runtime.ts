@@ -14,6 +14,13 @@ import {
   streamSimple,
 } from "@mariozechner/pi-ai";
 import type { CustomCommand } from "just-bash/browser";
+import { ContextManager } from "./context/manager";
+import {
+  type Disposable,
+  HookRegistry,
+  readBeforeWritePostHook,
+  readBeforeWritePreHook,
+} from "./hooks";
 import {
   agentMessagesToChatMessages,
   type ChatMessage,
@@ -27,6 +34,15 @@ import {
   refreshOAuthToken,
   saveOAuthCredentials,
 } from "./oauth";
+import { PatternRegistry } from "./patterns/registry";
+import type { ReasoningPattern } from "./patterns/types";
+import {
+  createUpdatePlanTool,
+  type ExecutionPlan,
+  PlanManager,
+  TaskClassifier,
+  type TaskRecord,
+} from "./planning";
 import {
   applyProxyToModel,
   buildCustomModel,
@@ -35,6 +51,7 @@ import {
   saveConfig,
   type ThinkingLevel,
 } from "./provider-config";
+import { ReflectionEngine } from "./reflection/engine";
 import {
   addSkill,
   getInstalledSkills,
@@ -42,6 +59,7 @@ import {
   type SkillMeta,
   syncSkillsToVfs,
 } from "./skills";
+import { TaskTracker } from "./state/tracker";
 import {
   type ChatSession,
   createSession,
@@ -53,6 +71,13 @@ import {
   saveSession,
   saveVfsFiles,
 } from "./storage";
+import {
+  deletePlanRecords,
+  deleteReflectionEntries,
+  deleteTaskRecords,
+  getLatestPlanRecord,
+  getLatestTaskRecord,
+} from "./storage/db";
 import {
   deleteFile,
   listUploads,
@@ -76,6 +101,10 @@ export interface RuntimeAdapter {
   metadataTag?: string;
   staticFiles?: Record<string, string>;
   customCommands?: () => CustomCommand[];
+  registerHooks?: (
+    registry: HookRegistry,
+  ) => Disposable | Disposable[] | undefined;
+  getReasoningPatterns?: () => ReasoningPattern[];
 }
 
 export interface UploadedFile {
@@ -96,6 +125,8 @@ export interface RuntimeState {
   isUploading: boolean;
   skills: SkillMeta[];
   vfsInvalidatedAt: number;
+  activePlan: ExecutionPlan | null;
+  activeTask: TaskRecord | null;
 }
 
 type StateListener = (state: RuntimeState) => void;
@@ -118,11 +149,24 @@ export class AgentRuntime {
   private followMode = true;
   private skills: SkillMeta[] = [];
   private adapter: RuntimeAdapter;
+  private hookRegistry: HookRegistry;
+  private adapterHookDisposables: Disposable[] = [];
+  private taskClassifier = new TaskClassifier();
+  private planManager = new PlanManager({ writeFile });
+  private taskTracker = new TaskTracker();
+  private reflectionEngine = new ReflectionEngine();
+  private contextManager = new ContextManager();
+  private patternRegistry = new PatternRegistry();
   private listeners: Set<StateListener> = new Set();
   private state: RuntimeState;
 
   constructor(adapter: RuntimeAdapter) {
     this.adapter = adapter;
+    this.hookRegistry = new HookRegistry();
+    this.hookRegistry.registerPre(readBeforeWritePreHook);
+    this.hookRegistry.registerPost(readBeforeWritePostHook);
+    this.syncAdapterHooks(adapter);
+    this.syncAdapterPatterns(adapter);
     const saved = loadSavedConfig();
     const validConfig =
       saved?.provider && saved?.apiKey && saved?.model ? saved : null;
@@ -140,6 +184,8 @@ export class AgentRuntime {
       isUploading: false,
       skills: [],
       vfsInvalidatedAt: 0,
+      activePlan: null,
+      activeTask: null,
     };
   }
 
@@ -180,7 +226,14 @@ export class AgentRuntime {
   }
 
   setAdapter(adapter: RuntimeAdapter) {
+    if (this.adapter === adapter) return;
     this.adapter = adapter;
+    this.syncAdapterHooks(adapter);
+    this.syncAdapterPatterns(adapter);
+
+    if (this.state.providerConfig && !this.isStreaming) {
+      this.applyConfig(this.state.providerConfig);
+    }
   }
 
   getAvailableProviders(): string[] {
@@ -448,7 +501,10 @@ export class AgentRuntime {
         model: proxiedModel,
         systemPrompt,
         thinkingLevel: thinkingLevelToAgent(config.thinking),
-        tools: this.adapter.tools,
+        tools: [
+          createUpdatePlanTool(this.planManager),
+          ...this.hookRegistry.wrapTools(this.adapter.tools),
+        ],
         messages: existingMessages,
       },
       streamFn: async (model, context, options) => {
@@ -539,6 +595,52 @@ export class AgentRuntime {
         promptContent = `<attachments>\n${paths}\n</attachments>\n\n${promptContent}`;
       }
 
+      const classification = await this.taskClassifier.classify(content);
+      const activePlan = classification.needsPlan
+        ? await this.planManager.createPlan(content, classification)
+        : this.planManager.hydrate(null);
+      this.reflectionEngine = new ReflectionEngine();
+      const activeTask = this.taskTracker.beginTask(content, classification, {
+        planId: activePlan?.id,
+      });
+      this.patternRegistry.deactivateAll();
+      this.patternRegistry.activateMatching(
+        this.hookRegistry,
+        classification,
+        activePlan ?? undefined,
+      );
+
+      this.update({
+        activePlan,
+        activeTask,
+      });
+
+      if (activePlan) {
+        promptContent = `${this.planManager.formatPlanForPrompt(activePlan)}\n\n${promptContent}`;
+      }
+
+      const contextUsagePct =
+        this.state.sessionStats.contextWindow > 0
+          ? Math.round(
+              (this.state.sessionStats.lastInputTokens /
+                this.state.sessionStats.contextWindow) *
+                100,
+            )
+          : 0;
+      const contextAction =
+        this.contextManager.getActionForUsage(contextUsagePct);
+      if (contextAction !== "none") {
+        promptContent = `<context_budget action="${contextAction}" usage_pct="${contextUsagePct}" />\n\n${promptContent}`;
+      }
+
+      const hookNotes = this.hookRegistry.drainPromptNotes();
+      if (hookNotes.length > 0) {
+        const noteText = hookNotes
+          .map((note) => `[${note.level.toUpperCase()}] ${note.text}`)
+          .join("\n");
+        promptContent = `<hook_notes>\n${noteText}\n</hook_notes>\n\n${promptContent}`;
+      }
+
       await agent.prompt(promptContent);
     } catch (err) {
       console.error("[Runtime] sendMessage error:", err);
@@ -546,6 +648,10 @@ export class AgentRuntime {
       this.update({
         isStreaming: false,
         error: err instanceof Error ? err.message : "An error occurred",
+        activePlan: this.planManager.getActivePlan(),
+        activeTask: this.taskTracker.failTask(
+          err instanceof Error ? err.message : "An error occurred",
+        ),
       });
     }
   }
@@ -554,10 +660,17 @@ export class AgentRuntime {
     this.abort();
     this.agent?.reset();
     resetVfs();
+    this.hookRegistry.resetSessionState();
+    this.planManager.hydrate(null);
+    this.taskTracker.reset();
+    this.patternRegistry.deactivateAll();
     if (this.currentSessionId) {
       Promise.all([
         saveSession(this.currentSessionId, []),
         saveVfsFiles(this.currentSessionId, []),
+        deletePlanRecords(this.currentSessionId),
+        deleteTaskRecords(this.currentSessionId),
+        deleteReflectionEntries(this.currentSessionId),
       ]).catch(console.error);
     }
     this.update({
@@ -565,6 +678,8 @@ export class AgentRuntime {
       error: null,
       sessionStats: INITIAL_STATS,
       uploads: [],
+      activePlan: null,
+      activeTask: null,
     });
   }
 
@@ -580,6 +695,10 @@ export class AgentRuntime {
     try {
       this.agent?.reset();
       resetVfs();
+      this.hookRegistry.resetSessionState();
+      this.planManager.hydrate(null);
+      this.taskTracker.reset();
+      this.patternRegistry.deactivateAll();
       const session = await createSession(this.documentId);
       this.currentSessionId = session.id;
       await this.refreshSessions();
@@ -589,6 +708,8 @@ export class AgentRuntime {
         error: null,
         sessionStats: INITIAL_STATS,
         uploads: [],
+        activePlan: null,
+        activeTask: null,
       });
     } catch (err) {
       console.error("[Runtime] Failed to create session:", err);
@@ -599,14 +720,21 @@ export class AgentRuntime {
     if (this.currentSessionId === sessionId) return;
     if (this.isStreaming) return;
     this.agent?.reset();
+    this.hookRegistry.resetSessionState();
+    this.patternRegistry.deactivateAll();
     try {
-      const [session, vfsFiles] = await Promise.all([
+      const [session, vfsFiles, latestPlan, latestTask] = await Promise.all([
         getSession(sessionId),
         loadVfsFiles(sessionId),
+        getLatestPlanRecord(sessionId),
+        getLatestTaskRecord(sessionId),
       ]);
       if (!session) return;
       await restoreVfs(vfsFiles);
       this.currentSessionId = session.id;
+      const activePlan = this.planManager.hydrate(latestPlan);
+      const activeTask = this.taskTracker.hydrate(latestTask);
+      this.activateRestoredPatterns(activePlan);
 
       if (session.agentMessages.length > 0 && this.agent) {
         this.agent.replaceMessages(session.agentMessages);
@@ -626,6 +754,8 @@ export class AgentRuntime {
           contextWindow: this.state.sessionStats.contextWindow,
         },
         uploads: uploadNames.map((name) => ({ name, size: 0 })),
+        activePlan,
+        activeTask,
       });
       await this.refreshNameMap();
     } catch (err) {
@@ -637,12 +767,29 @@ export class AgentRuntime {
     if (!this.currentSessionId || !this.documentId) return;
     if (this.isStreaming) return;
     this.agent?.reset();
+    this.hookRegistry.resetSessionState();
+    this.planManager.hydrate(null);
+    this.taskTracker.reset();
+    this.patternRegistry.deactivateAll();
     const deletedId = this.currentSessionId;
-    await Promise.all([deleteSession(deletedId), saveVfsFiles(deletedId, [])]);
+    await Promise.all([
+      deleteSession(deletedId),
+      saveVfsFiles(deletedId, []),
+      deletePlanRecords(deletedId),
+      deleteTaskRecords(deletedId),
+      deleteReflectionEntries(deletedId),
+    ]);
     const session = await getOrCreateCurrentSession(this.documentId);
     this.currentSessionId = session.id;
-    const vfsFiles = await loadVfsFiles(session.id);
+    const [vfsFiles, latestPlan, latestTask] = await Promise.all([
+      loadVfsFiles(session.id),
+      getLatestPlanRecord(session.id),
+      getLatestTaskRecord(session.id),
+    ]);
     await restoreVfs(vfsFiles);
+    const activePlan = this.planManager.hydrate(latestPlan);
+    const activeTask = this.taskTracker.hydrate(latestTask);
+    this.activateRestoredPatterns(activePlan);
 
     if (session.agentMessages.length > 0 && this.agent) {
       this.agent.replaceMessages(session.agentMessages);
@@ -663,6 +810,8 @@ export class AgentRuntime {
         contextWindow: this.state.sessionStats.contextWindow,
       },
       uploads: uploadNames.map((name) => ({ name, size: 0 })),
+      activePlan,
+      activeTask,
     });
   }
 
@@ -671,15 +820,34 @@ export class AgentRuntime {
     const sessionId = this.currentSessionId;
     const agentMessages = this.agent?.state.messages ?? [];
     try {
+      const taskSummary = this.state.error
+        ? this.state.error
+        : "Agent execution completed.";
+      const activeTask = this.state.error
+        ? this.taskTracker.failTask(taskSummary)
+        : this.taskTracker.completeTask(taskSummary);
+      if (activeTask) {
+        await this.reflectionEngine.taskReflect({
+          taskId: activeTask.id,
+          summary: taskSummary,
+        });
+      }
       const vfsFiles = await snapshotVfs();
       await Promise.all([
         saveSession(sessionId, agentMessages),
         saveVfsFiles(sessionId, vfsFiles),
+        this.planManager.persist(sessionId),
+        this.taskTracker.persist(sessionId),
+        this.reflectionEngine.persist(sessionId),
       ]);
       await this.refreshSessions();
       const updated = await getSession(sessionId);
       if (updated) {
-        this.update({ currentSession: updated });
+        this.update({
+          currentSession: updated,
+          activePlan: this.planManager.getActivePlan(),
+          activeTask,
+        });
       }
       this.bumpVfs();
     } catch (e) {
@@ -713,13 +881,18 @@ export class AgentRuntime {
 
       const session = await getOrCreateCurrentSession(id);
       this.currentSessionId = session.id;
-      const [sessions, vfsFiles] = await Promise.all([
+      const [sessions, vfsFiles, latestPlan, latestTask] = await Promise.all([
         listSessions(id),
         loadVfsFiles(session.id),
+        getLatestPlanRecord(session.id),
+        getLatestTaskRecord(session.id),
       ]);
       if (vfsFiles.length > 0) {
         await restoreVfs(vfsFiles);
       }
+      const activePlan = this.planManager.hydrate(latestPlan);
+      const activeTask = this.taskTracker.hydrate(latestTask);
+      this.activateRestoredPatterns(activePlan);
 
       if (session.agentMessages.length > 0 && this.agent) {
         this.agent.replaceMessages(session.agentMessages);
@@ -740,6 +913,8 @@ export class AgentRuntime {
           contextWindow: this.state.sessionStats.contextWindow,
         },
         uploads: uploadNames.map((name) => ({ name, size: 0 })),
+        activePlan,
+        activeTask,
       });
       await this.refreshNameMap();
     } catch (err) {
@@ -863,6 +1038,46 @@ export class AgentRuntime {
 
   dispose() {
     this.agent?.abort();
+    this.clearAdapterHooks();
+    this.patternRegistry.deactivateAll();
     this.listeners.clear();
+  }
+
+  private clearAdapterHooks() {
+    for (const disposable of this.adapterHookDisposables) {
+      disposable.dispose();
+    }
+    this.adapterHookDisposables = [];
+  }
+
+  private syncAdapterHooks(adapter: RuntimeAdapter) {
+    this.clearAdapterHooks();
+
+    const registration = adapter.registerHooks?.(this.hookRegistry);
+    if (!registration) return;
+
+    this.adapterHookDisposables = Array.isArray(registration)
+      ? registration
+      : [registration];
+  }
+
+  private syncAdapterPatterns(adapter: RuntimeAdapter) {
+    this.patternRegistry.deactivateAll();
+    this.patternRegistry = new PatternRegistry();
+
+    for (const pattern of adapter.getReasoningPatterns?.() ?? []) {
+      this.patternRegistry.register(pattern);
+    }
+  }
+
+  private activateRestoredPatterns(plan: ExecutionPlan | null) {
+    this.patternRegistry.deactivateAll();
+    if (!plan) return;
+
+    this.patternRegistry.activateMatching(
+      this.hookRegistry,
+      plan.classification,
+      plan,
+    );
   }
 }

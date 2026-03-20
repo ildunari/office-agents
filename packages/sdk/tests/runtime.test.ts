@@ -4,8 +4,11 @@ import { AgentRuntime, type RuntimeAdapter, type RuntimeState } from "../src/run
 import { configureNamespace } from "../src/storage/namespace";
 import { resetVfs, setStaticFiles } from "../src/vfs";
 
-// Stub localStorage for Node
-if (typeof globalThis.localStorage === "undefined") {
+// Stub localStorage for Node or incomplete happy-dom implementations
+if (
+  typeof globalThis.localStorage === "undefined" ||
+  typeof globalThis.localStorage.setItem !== "function"
+) {
   const store: Record<string, string> = {};
   (globalThis as any).localStorage = {
     getItem: (key: string) => store[key] ?? null,
@@ -115,7 +118,7 @@ describe("AgentRuntime", () => {
     const state = runtime.getState();
     expect(state.providerConfig).not.toBeNull();
     expect(state.providerConfig!.provider).toBe("custom");
-    expect(state.sessionStats.contextWindow).toBe(128000);
+    expect(state.sessionStats.contextWindow).toBe(750000);
     runtime.dispose();
   });
 

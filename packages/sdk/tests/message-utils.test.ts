@@ -98,6 +98,47 @@ describe("extractPartsFromAssistantMessage", () => {
     });
   });
 
+  it("hides internal control tools from assistant parts", () => {
+    const message = {
+      role: "assistant" as const,
+      content: [
+        {
+          type: "toolCall" as const,
+          id: "tc_plan",
+          name: "update_plan",
+          arguments: { action: "create" },
+        },
+        {
+          type: "toolCall" as const,
+          id: "tc_1",
+          name: "bash",
+          arguments: { command: "ls" },
+        },
+      ],
+      timestamp: 1,
+      stopReason: "stop" as const,
+      api: "openai-completions" as const,
+      provider: "openai",
+      model: "gpt-4",
+      usage: {
+        input: 10,
+        output: 5,
+        cacheRead: 0,
+        cacheWrite: 0,
+        totalTokens: 15,
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+      },
+    };
+
+    const parts = extractPartsFromAssistantMessage(message);
+    expect(parts).toHaveLength(1);
+    expect(parts[0]).toMatchObject({
+      type: "toolCall",
+      id: "tc_1",
+      name: "bash",
+    });
+  });
+
   it("preserves existing tool call status from prior parts", () => {
     const message = {
       role: "assistant" as const,
@@ -203,6 +244,60 @@ describe("agentMessagesToChatMessages", () => {
     expect(toolPart.type).toBe("toolCall");
     if (toolPart.type === "toolCall") {
       expect(toolPart.status).toBe("complete");
+      expect(toolPart.result).toBe("hi");
+    }
+  });
+
+  it("omits internal control tool calls from chat messages", () => {
+    const messages = [
+      {
+        role: "assistant" as const,
+        content: [
+          {
+            type: "toolCall" as const,
+            id: "tc_plan",
+            name: "update_plan",
+            arguments: { action: "create" },
+          },
+          {
+            type: "toolCall" as const,
+            id: "tc_1",
+            name: "bash",
+            arguments: { command: "echo hi" },
+          },
+        ],
+        timestamp: 1,
+        stopReason: "stop" as const,
+        api: "openai-completions" as const,
+        provider: "openai",
+        model: "gpt-4",
+        usage,
+      },
+      {
+        role: "toolResult" as const,
+        toolName: "update_plan",
+        toolCallId: "tc_plan",
+        content: [{ type: "text" as const, text: "{\"ok\":true}" }],
+        isError: false,
+        timestamp: 2,
+      },
+      {
+        role: "toolResult" as const,
+        toolName: "bash",
+        toolCallId: "tc_1",
+        content: [{ type: "text" as const, text: "hi" }],
+        isError: false,
+        timestamp: 3,
+      },
+    ];
+
+    const result = agentMessagesToChatMessages(messages);
+    expect(result).toHaveLength(1);
+    expect(result[0].parts).toHaveLength(1);
+    const toolPart = result[0].parts[0];
+    expect(toolPart.type).toBe("toolCall");
+    if (toolPart.type === "toolCall") {
+      expect(toolPart.name).toBe("bash");
       expect(toolPart.result).toBe("hi");
     }
   });

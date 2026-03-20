@@ -1,5 +1,47 @@
 // Runtime
 
+// Context
+export { type ContextAction, ContextManager } from "./context/manager";
+export type { ContextBudget, DocumentMap } from "./context/types";
+export type {
+  Disposable,
+  DocumentScope,
+  ExcelScope,
+  HookAction,
+  HookBand,
+  HookBudget,
+  HookFailurePolicy,
+  HookPhase,
+  HookPromptNote,
+  HookSelector,
+  HookSessionState,
+  HookSourceRef,
+  HookSpeed,
+  HookWarning,
+  OfficeApp,
+  PostHookContext,
+  PostHookDefinition,
+  PostHookResult,
+  PreHookContext,
+  PreHookDefinition,
+  PreHookResult,
+  RiskLevel,
+  ToolCallEnvelope,
+  ToolTag,
+  WordScope,
+} from "./hooks";
+// Hooks
+export {
+  classifyTool,
+  classifyToolRisk,
+  formatFingerprintCheckHook,
+  formatFingerprintPreHook,
+  formatFingerprintRecordHook,
+  HookRegistry,
+  readBeforeWritePostHook,
+  readBeforeWritePreHook,
+  wrapTool,
+} from "./hooks";
 export type { ImageResizeOptions, ResizedImage } from "./image-resize";
 export { resizeImage } from "./image-resize";
 // Lockdown
@@ -29,7 +71,32 @@ export {
   removeOAuthCredentials,
   saveOAuthCredentials,
 } from "./oauth";
+// Patterns
+export { PatternRegistry } from "./patterns/registry";
+export type { ReasoningPattern } from "./patterns/types";
 export { loadPdfDocument } from "./pdf";
+export type {
+  ExecutionPlan,
+  PlanMode,
+  PlanRevisionNote,
+  PlanStatus,
+  PlanStep,
+  StepKind,
+  StepStatus,
+  TaskClassification,
+  TaskComplexity,
+  TaskRecord,
+  TaskStatus,
+} from "./planning";
+// Planning
+export {
+  buildDefaultPlan,
+  createUpdatePlanTool,
+  formatPlanForPrompt,
+  inferTaskClassification,
+  PlanManager,
+  TaskClassifier,
+} from "./planning";
 // Provider config
 export {
   API_TYPES,
@@ -41,6 +108,16 @@ export {
   THINKING_LEVELS,
   type ThinkingLevel,
 } from "./provider-config";
+// Reflection
+export { ReflectionEngine } from "./reflection/engine";
+export type {
+  MicroReflectionInput,
+  QualityCriteria,
+  ReflectionLevel,
+  ReflectionResult,
+  StepReflectionInput,
+  TaskReflectionInput,
+} from "./reflection/types";
 export {
   AgentRuntime,
   type RuntimeAdapter,
@@ -60,23 +137,44 @@ export {
   type SkillMeta,
   syncSkillsToVfs,
 } from "./skills";
+export type { BeginTaskOptions } from "./state/tracker";
+// State
+export { TaskTracker } from "./state/tracker";
+export type { TrackedMutation } from "./state/undo";
+export { buildUndoNarrative } from "./state/undo";
 // Storage
 export {
   type ChatSession,
   configureNamespace,
   createSession,
+  deletePlanRecords,
+  deleteReflectionEntries,
   deleteSession,
+  deleteTaskRecords,
+  getLatestPlanRecord,
+  getLatestTaskRecord,
   getNamespace,
   getOrCreateCurrentSession,
   getOrCreateDocumentId,
+  getPlanRecord,
   getSession,
   getSessionMessageCount,
+  getTaskRecord,
+  listPlanRecords,
+  listReflectionEntries,
   listSessions,
+  listTaskRecords,
   loadVfsFiles,
+  type PlanRecord,
+  type ReflectionEntry,
   renameSession,
   type StorageNamespace,
+  savePlanRecord,
+  saveReflectionEntry,
   saveSession,
+  saveTaskRecord,
   saveVfsFiles,
+  type TaskRecordEntry,
 } from "./storage";
 // Tools
 export { bashTool } from "./tools/bash";

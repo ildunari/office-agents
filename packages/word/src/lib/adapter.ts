@@ -1,9 +1,15 @@
 import type { AppAdapter } from "@office-agents/core";
-import { getOrCreateDocumentId } from "@office-agents/core";
+import {
+  formatFingerprintCheckHook,
+  formatFingerprintPreHook,
+  formatFingerprintRecordHook,
+  getOrCreateDocumentId,
+} from "@office-agents/core";
 import SelectionIndicator from "./components/selection-indicator.svelte";
 import TrackChangesIndicator from "./components/track-changes-indicator.svelte";
 import wordApiFullDts from "./docs/word-officejs-api.d.ts?raw";
 import wordApiOnlineDts from "./docs/word-officejs-api-online.d.ts?raw";
+import { getWordReasoningPatterns } from "./patterns";
 import { buildWordSystemPrompt } from "./system-prompt";
 import { WORD_TOOLS } from "./tools";
 import { getCustomCommands } from "./vfs/custom-commands";
@@ -27,7 +33,7 @@ export function createWordAdapter(): AppAdapter {
     metadataTag: "doc_context",
     storageNamespace: {
       dbName: "OpenWordDB_v1",
-      dbVersion: 1,
+      dbVersion: 2,
       localStoragePrefix: "openword",
       documentSettingsPrefix: "openword",
       documentIdSettingsKey: "openword-document-id",
@@ -37,6 +43,12 @@ export function createWordAdapter(): AppAdapter {
     HeaderExtras: TrackChangesIndicator,
     SelectionIndicator,
     buildSystemPrompt: buildWordSystemPrompt,
+    getReasoningPatterns: getWordReasoningPatterns,
+    registerHooks: (registry) => [
+      registry.registerPre(formatFingerprintPreHook),
+      registry.registerPost(formatFingerprintRecordHook),
+      registry.registerPost(formatFingerprintCheckHook),
+    ],
 
     getDocumentId: async () => {
       return getOrCreateDocumentId();

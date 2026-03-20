@@ -30,6 +30,25 @@ async function run(cmd: string) {
 // @ts-ignore
 const hasPromiseTry = typeof Promise.try === "function";
 
+if (
+  typeof globalThis.localStorage === "undefined" ||
+  typeof globalThis.localStorage.setItem !== "function"
+) {
+  const store: Record<string, string> = {};
+  (globalThis as any).localStorage = {
+    getItem: (key: string) => store[key] ?? null,
+    setItem: (key: string, value: string) => {
+      store[key] = value;
+    },
+    removeItem: (key: string) => {
+      delete store[key];
+    },
+    clear: () => {
+      for (const key of Object.keys(store)) delete store[key];
+    },
+  };
+}
+
 describe("shared custom commands (integration)", () => {
   beforeEach(() => {
     setCustomCommands(() => getSharedCustomCommands());
