@@ -48,6 +48,7 @@ pnpm --filter @office-agents/word test
 - When a task affects manifests or add-in packaging, run `pnpm validate`, because manifest mistakes break the actual install and launch path rather than just a local test.
 - When a task crosses package boundaries or changes shared behavior, prefer `pnpm check`. It mirrors the important CI gates in one pass, so it is a good default when narrower validation feels risky.
 - Use `pnpm format` after touching files that Biome formats, but avoid broad formatting-only churn when the task is small.
+- Use git tracking throughout the task: check status before editing, stage only the relevant files, and prefer a small focused commit when the work is done unless the user wants to keep changes uncommitted.
 
 ## Conventions
 
@@ -56,6 +57,7 @@ pnpm --filter @office-agents/word test
 - Avoid inventing commands or Office.js behavior. If something is uncertain, inspect the code, the package README, or CI before relying on it.
 - `office-bridge exec` runs direct taskpane code by default. Use it only when full runtime access is part of the task, and prefer `--sandbox` when you want to exercise the app's existing escape-hatch path instead.
 - If you notice adjacent cleanup while working, mention it in the handoff instead of expanding scope automatically.
+- If you change behavior or workflow that is already documented in a nearby README or instruction file, update that source of truth as part of the same task when it is safe to do so.
 
 ## Approval Gates
 
@@ -63,6 +65,7 @@ Pause and ask before:
 - adding or removing dependencies
 - changing GitHub workflows or release scripts
 - deleting files or moving files across packages
+- pushing to a remote or rewriting git history
 - changing storage namespaces, manifest identifiers, or other compatibility-sensitive keys
 - changing bridge security defaults or certificate handling
 
