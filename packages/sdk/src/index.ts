@@ -1,5 +1,7 @@
 // Runtime
 
+export { ContextManager } from "./context/ContextManager";
+export { HookRegistry } from "./hooks/HookRegistry";
 export type { ImageResizeOptions, ResizedImage } from "./image-resize";
 export { resizeImage } from "./image-resize";
 // Lockdown
@@ -29,7 +31,24 @@ export {
   removeOAuthCredentials,
   saveOAuthCredentials,
 } from "./oauth";
+export { AgentOrchestrator } from "./orchestration/AgentOrchestrator";
+export type {
+  ApprovalRequest,
+  ContextBudgetState,
+  ExecutionPlan,
+  HookTraceEntry,
+  HostApp,
+  OrchestratorState,
+  PlanMode,
+  PlanStep,
+  TaskClassification,
+  TaskRecord,
+  UndoEntry,
+  UpdatePlanInput,
+} from "./orchestration/types";
 export { loadPdfDocument } from "./pdf";
+export { classifyTask } from "./planning/classifier";
+export { PlanManager } from "./planning/PlanManager";
 // Provider config
 export {
   API_TYPES,
@@ -41,6 +60,7 @@ export {
   THINKING_LEVELS,
   type ThinkingLevel,
 } from "./provider-config";
+export { ReflectionEngine } from "./reflection/ReflectionEngine";
 export {
   AgentRuntime,
   type RuntimeAdapter,
@@ -60,6 +80,7 @@ export {
   type SkillMeta,
   syncSkillsToVfs,
 } from "./skills";
+export { TaskStore } from "./state/TaskStore";
 // Storage
 export {
   type ChatSession,

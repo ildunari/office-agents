@@ -14,6 +14,7 @@ import {
   streamSimple,
 } from "@mariozechner/pi-ai";
 import type { CustomCommand } from "just-bash/browser";
+import { ContextManager } from "./context/ContextManager";
 import {
   agentMessagesToChatMessages,
   type ChatMessage,
@@ -27,6 +28,16 @@ import {
   refreshOAuthToken,
   saveOAuthCredentials,
 } from "./oauth";
+import { AgentOrchestrator } from "./orchestration/AgentOrchestrator";
+import type {
+  ApprovalRequest,
+  ContextBudgetState,
+  ExecutionPlan,
+  HookTraceEntry,
+  HostApp,
+  TaskRecord,
+  UndoEntry,
+} from "./orchestration/types";
 import {
   applyProxyToModel,
   buildCustomModel,
@@ -42,6 +53,7 @@ import {
   type SkillMeta,
   syncSkillsToVfs,
 } from "./skills";
+import { TaskStore } from "./state/TaskStore";
 import {
   type ChatSession,
   createSession,
@@ -65,6 +77,7 @@ import {
 } from "./vfs";
 
 export interface RuntimeAdapter {
+  hostApp?: HostApp;
   tools: AgentTool[];
   buildSystemPrompt: (skills: SkillMeta[]) => string;
   getDocumentId: () => Promise<string>;
@@ -96,6 +109,12 @@ export interface RuntimeState {
   isUploading: boolean;
   skills: SkillMeta[];
   vfsInvalidatedAt: number;
+  activeTask: TaskRecord | null;
+  planState: ExecutionPlan | null;
+  approvalRequest: ApprovalRequest | null;
+  contextBudget: ContextBudgetState | null;
+  hookTrace: HookTraceEntry[];
+  undoLog: UndoEntry[];
 }
 
 type StateListener = (state: RuntimeState) => void;
@@ -117,6 +136,9 @@ export class AgentRuntime {
   private sessionLoaded = false;
   private followMode = true;
   private skills: SkillMeta[] = [];
+  private orchestrator: AgentOrchestrator | null = null;
+  private readonly taskStore = new TaskStore();
+  private readonly contextManager = new ContextManager();
   private adapter: RuntimeAdapter;
   private listeners: Set<StateListener> = new Set();
   private state: RuntimeState;
@@ -140,6 +162,12 @@ export class AgentRuntime {
       isUploading: false,
       skills: [],
       vfsInvalidatedAt: 0,
+      activeTask: null,
+      planState: null,
+      approvalRequest: null,
+      contextBudget: null,
+      hookTrace: [],
+      undoLog: [],
     };
   }
 
@@ -159,6 +187,12 @@ export class AgentRuntime {
   }
 
   private update(partial: Partial<RuntimeState>) {
+    if (partial.sessionStats && partial.contextBudget === undefined) {
+      partial = {
+        ...partial,
+        contextBudget: this.contextManager.compute(partial.sessionStats),
+      };
+    }
     this.state = { ...this.state, ...partial };
     this.emit();
   }
@@ -171,16 +205,72 @@ export class AgentRuntime {
     updater: (messages: ChatMessage[]) => ChatMessage[],
     extra?: Partial<RuntimeState>,
   ) {
+    let nextExtra = extra;
+    if (extra?.sessionStats && extra.contextBudget === undefined) {
+      nextExtra = {
+        ...extra,
+        contextBudget: this.contextManager.compute(extra.sessionStats),
+      };
+    }
     this.state = {
       ...this.state,
       messages: updater(this.state.messages),
-      ...extra,
+      ...nextExtra,
     };
     this.emit();
   }
 
   setAdapter(adapter: RuntimeAdapter) {
     this.adapter = adapter;
+    this.initializeOrchestrator();
+    if (this.state.providerConfig && !this.isStreaming) {
+      this.applyConfig(this.state.providerConfig);
+    }
+  }
+
+  private getHostApp(): HostApp {
+    return this.adapter.hostApp ?? "generic";
+  }
+
+  private initializeOrchestrator() {
+    this.orchestrator = new AgentOrchestrator({
+      hostApp: this.getHostApp(),
+      sessionId: this.currentSessionId ?? "pending-session",
+      documentKey: this.documentId ?? "pending-document",
+      onStateChange: (orchestratorState) => {
+        this.update({
+          activeTask: orchestratorState.activeTask,
+          planState: orchestratorState.plan,
+          approvalRequest: orchestratorState.approvalRequest,
+          contextBudget:
+            orchestratorState.contextBudget ?? this.state.contextBudget,
+          hookTrace: orchestratorState.hookTrace,
+          undoLog: orchestratorState.undoLog,
+        });
+        void this.persistOrchestrationState();
+      },
+    });
+    const orchestratorState = this.orchestrator.getState();
+    this.update({
+      activeTask: orchestratorState.activeTask,
+      planState: orchestratorState.plan,
+      approvalRequest: orchestratorState.approvalRequest,
+      contextBudget:
+        orchestratorState.contextBudget ?? this.state.contextBudget,
+      hookTrace: orchestratorState.hookTrace,
+      undoLog: orchestratorState.undoLog,
+    });
+  }
+
+  private async persistOrchestrationState() {
+    if (!this.orchestrator) return;
+    await this.taskStore.save(this.orchestrator.getState());
+  }
+
+  private async hydrateOrchestrationState() {
+    if (!this.orchestrator) return;
+    const persisted = await this.taskStore.load();
+    this.orchestrator.hydrateState(persisted);
   }
 
   getAvailableProviders(): string[] {
@@ -441,14 +531,25 @@ export class AgentRuntime {
       this.agent.abort();
     }
 
-    const systemPrompt = this.adapter.buildSystemPrompt(this.skills);
+    if (!this.orchestrator) {
+      this.initializeOrchestrator();
+    }
+    const systemPrompt = [
+      this.orchestrator?.getSystemPromptPreamble(),
+      this.adapter.buildSystemPrompt(this.skills),
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+    const tools = this.orchestrator
+      ? this.orchestrator.wrapTools(this.adapter.tools)
+      : this.adapter.tools;
 
     const agent = new Agent({
       initialState: {
         model: proxiedModel,
         systemPrompt,
         thinkingLevel: thinkingLevelToAgent(config.thinking),
-        tools: this.adapter.tools,
+        tools,
         messages: existingMessages,
       },
       streamFn: async (model, context, options) => {
@@ -516,6 +617,7 @@ export class AgentRuntime {
 
     try {
       let promptContent = content;
+      this.orchestrator?.beginPrompt(content);
 
       if (this.adapter.getDocumentMetadata) {
         try {
@@ -554,6 +656,7 @@ export class AgentRuntime {
     this.abort();
     this.agent?.reset();
     resetVfs();
+    this.initializeOrchestrator();
     if (this.currentSessionId) {
       Promise.all([
         saveSession(this.currentSessionId, []),
@@ -582,6 +685,7 @@ export class AgentRuntime {
       resetVfs();
       const session = await createSession(this.documentId);
       this.currentSessionId = session.id;
+      this.initializeOrchestrator();
       await this.refreshSessions();
       this.update({
         messages: [],
@@ -607,6 +711,8 @@ export class AgentRuntime {
       if (!session) return;
       await restoreVfs(vfsFiles);
       this.currentSessionId = session.id;
+      this.initializeOrchestrator();
+      await this.hydrateOrchestrationState();
 
       if (session.agentMessages.length > 0 && this.agent) {
         this.agent.replaceMessages(session.agentMessages);
@@ -641,8 +747,10 @@ export class AgentRuntime {
     await Promise.all([deleteSession(deletedId), saveVfsFiles(deletedId, [])]);
     const session = await getOrCreateCurrentSession(this.documentId);
     this.currentSessionId = session.id;
+    this.initializeOrchestrator();
     const vfsFiles = await loadVfsFiles(session.id);
     await restoreVfs(vfsFiles);
+    await this.hydrateOrchestrationState();
 
     if (session.agentMessages.length > 0 && this.agent) {
       this.agent.replaceMessages(session.agentMessages);
@@ -701,6 +809,7 @@ export class AgentRuntime {
     try {
       const id = await this.adapter.getDocumentId();
       this.documentId = id;
+      this.initializeOrchestrator();
 
       const skills = await getInstalledSkills();
       this.skills = skills;
@@ -713,6 +822,7 @@ export class AgentRuntime {
 
       const session = await getOrCreateCurrentSession(id);
       this.currentSessionId = session.id;
+      this.initializeOrchestrator();
       const [sessions, vfsFiles] = await Promise.all([
         listSessions(id),
         loadVfsFiles(session.id),
@@ -720,6 +830,7 @@ export class AgentRuntime {
       if (vfsFiles.length > 0) {
         await restoreVfs(vfsFiles);
       }
+      await this.hydrateOrchestrationState();
 
       if (session.agentMessages.length > 0 && this.agent) {
         this.agent.replaceMessages(session.agentMessages);

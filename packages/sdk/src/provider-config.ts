@@ -22,6 +22,18 @@ function storageKey(): string {
   return `${getNamespace().localStoragePrefix}-provider-config`;
 }
 
+function getStorageLike(): Pick<Storage, "getItem" | "setItem"> | null {
+  const storage = globalThis.localStorage;
+  if (
+    !storage ||
+    typeof storage.getItem !== "function" ||
+    typeof storage.setItem !== "function"
+  ) {
+    return null;
+  }
+  return storage;
+}
+
 export const THINKING_LEVELS: { value: ThinkingLevel; label: string }[] = [
   { value: "none", label: "None" },
   { value: "low", label: "Low" },
@@ -66,7 +78,9 @@ export const API_TYPES = [
 
 export function loadSavedConfig(): ProviderConfig | null {
   try {
-    const saved = localStorage.getItem(storageKey());
+    const storage = getStorageLike();
+    if (!storage) return null;
+    const saved = storage.getItem(storageKey());
     if (saved) {
       const config = JSON.parse(saved);
       if (config.proxyUrl === undefined) config.proxyUrl = "";
@@ -86,7 +100,9 @@ export function loadSavedConfig(): ProviderConfig | null {
 }
 
 export function saveConfig(config: ProviderConfig) {
-  localStorage.setItem(storageKey(), JSON.stringify(config));
+  const storage = getStorageLike();
+  if (!storage) return;
+  storage.setItem(storageKey(), JSON.stringify(config));
 }
 
 export function buildCustomModel(config: ProviderConfig): Model<Api> | null {

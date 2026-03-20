@@ -25,6 +25,7 @@ function parseCitationUri(
 
 export function createExcelAdapter(): AppAdapter {
   return {
+    hostApp: "excel",
     tools: EXCEL_TOOLS,
     customCommands: getCustomCommands,
     staticFiles: {

@@ -1,5 +1,5 @@
 import type { AgentTool } from "@mariozechner/pi-agent-core";
-import type { SkillMeta, StorageNamespace } from "@office-agents/sdk";
+import type { HostApp, SkillMeta, StorageNamespace } from "@office-agents/sdk";
 import type { CustomCommand } from "just-bash/browser";
 import type { Component } from "svelte";
 
@@ -20,6 +20,7 @@ export interface ToolExtrasProps {
 }
 
 export interface AppAdapter {
+  hostApp?: HostApp;
   tools: AgentTool[];
   buildSystemPrompt: (skills: SkillMeta[]) => string;
   getDocumentId: () => Promise<string>;

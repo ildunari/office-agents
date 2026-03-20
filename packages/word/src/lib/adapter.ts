@@ -14,6 +14,7 @@ const TRACKING_MODE_CHANGED_EVENT = "word-tracking-mode-maybe-changed";
 
 export function createWordAdapter(): AppAdapter {
   return {
+    hostApp: "word",
     tools: WORD_TOOLS,
     customCommands: getCustomCommands,
     hasImageSearch: true,

@@ -21,6 +21,7 @@
   import ChatInput from "./chat-input.svelte";
   import FilesPanel from "./files-panel.svelte";
   import MessageList from "./message-list.svelte";
+  import PlanPanel from "./plan-panel.svelte";
   import SettingsPanel from "./settings-panel.svelte";
   import type { ChatTab } from "./types";
 
@@ -335,6 +336,11 @@
       </div>
     </div>
   </div>
+
+  <PlanPanel
+    plan={$runtimeState.planState}
+    approvalMessage={$runtimeState.approvalRequest?.uiMessage ?? null}
+  />
 
   {#if activeTab === "chat"}
     <MessageList />

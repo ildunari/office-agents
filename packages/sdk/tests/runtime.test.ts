@@ -1,7 +1,10 @@
 import "fake-indexeddb/auto";
+import { Type } from "@sinclair/typebox";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { buildCustomModel } from "../src/provider-config";
 import { AgentRuntime, type RuntimeAdapter, type RuntimeState } from "../src/runtime";
 import { configureNamespace } from "../src/storage/namespace";
+import { defineTool, toolSuccess } from "../src/tools/types";
 import { resetVfs, setStaticFiles } from "../src/vfs";
 
 // Stub localStorage for Node
@@ -38,6 +41,7 @@ function freshNamespace() {
 
 function createAdapter(overrides: Partial<RuntimeAdapter> = {}): RuntimeAdapter {
   return {
+    hostApp: "word",
     tools: [],
     buildSystemPrompt: () => "You are a test assistant.",
     getDocumentId: async () => "test-doc-1",
@@ -70,6 +74,8 @@ describe("AgentRuntime", () => {
     const runtime = new AgentRuntime(createAdapter());
     const models = runtime.getModelsForProvider("nonexistent-provider");
     expect(models).toEqual([]);
+    expect(runtime.getState().planState).toBeNull();
+    expect(runtime.getState().activeTask).toBeNull();
     runtime.dispose();
   });
 
@@ -93,13 +99,49 @@ describe("AgentRuntime", () => {
     expect(state.providerConfig!.model).toBe("gpt-4o-mini");
     expect(state.sessionStats.contextWindow).toBeGreaterThan(0);
     expect(state.error).toBeNull();
+    expect((runtime as unknown as { agent?: { state: { tools: Array<{ name: string }> } } }).agent?.state.tools.map((tool) => tool.name)).toContain("update_plan");
+    runtime.dispose();
+  });
+
+  it("wraps host tools with orchestration and keeps stable host tools", () => {
+    const runtime = new AgentRuntime(
+      createAdapter({
+        tools: [
+          defineTool({
+            name: "get_document_text",
+            label: "Get document text",
+            description: "read",
+            parameters: Type.Object({}),
+            execute: async () => toolSuccess({ ok: true }),
+          }),
+        ],
+      }),
+    );
+
+    runtime.applyConfig({
+      provider: "openai",
+      apiKey: "sk-test",
+      model: "gpt-4o-mini",
+      useProxy: false,
+      proxyUrl: "",
+      thinking: "none",
+      followMode: true,
+      expandToolCalls: false,
+    });
+
+    const agent = (runtime as unknown as {
+      agent?: { state: { tools: Array<{ name: string }> } };
+    }).agent;
+    expect(agent?.state.tools.map((tool) => tool.name)).toEqual([
+      "get_document_text",
+      "update_plan",
+    ]);
     runtime.dispose();
   });
 
   it("applyConfig with custom provider builds custom model", () => {
     const runtime = new AgentRuntime(createAdapter());
-
-    runtime.applyConfig({
+    const config = {
       provider: "custom",
       apiKey: "test-key",
       model: "llama3",
@@ -110,12 +152,16 @@ describe("AgentRuntime", () => {
       expandToolCalls: false,
       apiType: "openai-completions",
       customBaseUrl: "http://localhost:11434",
-    });
+    } as const;
+
+    runtime.applyConfig(config);
 
     const state = runtime.getState();
     expect(state.providerConfig).not.toBeNull();
     expect(state.providerConfig!.provider).toBe("custom");
-    expect(state.sessionStats.contextWindow).toBe(128000);
+    expect(state.sessionStats.contextWindow).toBe(
+      buildCustomModel(config)?.contextWindow,
+    );
     runtime.dispose();
   });
 
